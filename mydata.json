@@ -1,0 +1,43 @@
+{
+    "movies": [
+        {
+            "id": 1,
+            "title": "Inception",
+            "actors": [
+                "Leonardo DiCaprio",
+                "Joseph Gordon-Levitt",
+                "Ellen Page"
+            ],
+            "genre": "Science Fiction",
+            "year": 2010
+        },
+        {
+            "id": 2,
+            "title": "The Matrix",
+            "actors": [
+                "Keanu Reeves",
+                "Laurence Fishburne",
+                "Carrie-Anne Moss"
+            ],
+            "genre": "Action",
+            "year": 1999
+        },
+        {
+            "id": 3,
+            "title": "Interstellar",
+            "actors": [
+                "Matthew McConaughey",
+                "Anne Hathaway",
+                "Jessica Chastain"
+            ],
+            "genre": "Science Fiction",
+            "year": 2014
+        },
+        {
+            "title": "Spider-Man",
+            "genre": "Fantasy",
+            "actors": "Tobby Mcguire",
+            "year": "2002"
+        }
+    ]
+}

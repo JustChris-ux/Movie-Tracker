@@ -4,6 +4,11 @@ from tkinter import ttk
 import os
 from PIL import Image
 
+from tkinter import filedialog 
+import shutil
+
+set_appearance_mode("dark")
+
 class MovieApp(CTk):
     def __init__(self):
         super().__init__()
@@ -16,7 +21,9 @@ class MovieApp(CTk):
         self.set_background_image()
         
         # Data file
-        self.data_file = "mydata.json"
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        self.data_file = os.path.join(current_path, "mydata.json")
+        #self.data_file = "mydata.json"
         self.load_data()
         
         # Create a main frame with transparent background
@@ -34,7 +41,9 @@ class MovieApp(CTk):
     
     def set_background_image(self):
         """Set Joker image as background"""
-        joker_path = os.path.join("assets", "joker1.jpg")
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        joker_path = os.path.join(current_path, "assets", "joker1.jpg")
+        # joker_path = os.path.join("assets", "joker1.jpg")
         
         if os.path.exists(joker_path):
             try:
@@ -58,8 +67,16 @@ class MovieApp(CTk):
                
             except Exception as e:
                 self.configure(fg_color="#2b2b2b")
+    
+    def select_image(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.png *.jpeg")])
+        if file_path:
+            self.image_path = file_path
+            self.status_label.configure(text="Selected!", text_color="blue")
+    
     def load_data(self):
         """Load movie data from JSON file"""
+        self.data = {"movies": []}
         if os.path.exists(self.data_file):
             with open(self.data_file, "r") as file:
                 self.data = json.load(file)
@@ -100,10 +117,23 @@ class MovieApp(CTk):
         self.year_entry = CTkEntry(form_frame, width=400,height=40, placeholder_text="Enter year (e.g., 2023)", border_color="#000000", fg_color= "#4b4849", border_width=2  )
         self.year_entry.pack(padx=20, pady=(0,15))
         
+        #IMG
+        self.image_path = ""
+        # self.photo_btn = CTkButton(form_frame, text="Selecet poster", command=self.select_image)
+        self.photo_btn = CTkButton(
+        form_frame, 
+        text="📸 Select Poster", 
+        command=self.select_image,
+        fg_color="#4b4849",     
+        hover_color="#3d3d3d"
+        )
+        self.photo_btn.pack(pady=10)
+        
         # Buttons frame
         button_frame = CTkFrame(form_frame, fg_color="transparent")
         button_frame.pack(pady=30)
-        
+     
+
         # Add button
         add_btn = CTkButton(
             button_frame, 
@@ -282,23 +312,41 @@ class MovieApp(CTk):
     
     def add_movie(self):
         """Add a new movie to the collection"""
+       
+        
         # Get values from entries
         name = self.name_entry.get().strip()
         genre = self.genre_entry.get().strip()
         actors = self.actors_entry.get().strip()
         year = self.year_entry.get().strip()
         
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        assets_dir = os.path.join(base_dir, "assets")
+        
+        if not os.path.exists(assets_dir):
+         os.makedirs(assets_dir)
+        
+        image_name = "default.jpg"
+        if self.image_path:
+            image_name = os.path.basename(self.image_path)
+            dest_path = os.path.join(assets_dir, image_name)
+            import shutil
+            shutil.copy(self.image_path, dest_path)
+        
         # Validate inputs
         if not name:
             self.status_label.configure(text="Please enter a movie name!", text_color="red")
             return
+         
+       
         
         # Create movie dictionary
         movie = {
             "title": name,
             "genre": genre,
             "actors": actors,
-            "year": year
+            "year": year,
+            "image": image_name
         }
         
         # Add to data and save

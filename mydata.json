@@ -57,6 +57,15 @@
             "actors": "dssdf",
             "year": "345",
             "image": "assets\\posters\\pexels-firmbee-com-22729701-7013100.jpg"
+        },
+        {
+            "title": "Movie %",
+            "genre": "action, drama",
+            "actors": "Koko, kiki",
+            "year": "2026",
+            "image": "assets\\posters\\pexels-nathan-rostampour-3135695-12104694.jpg",
+            "comment": "Super, 100%",
+            "rating": "5"
         }
     ]
 }

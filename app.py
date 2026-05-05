@@ -46,6 +46,8 @@ class MovieApp(CTk):
         self.setup_movie_list_tab()
         self.setup_movies_page_tab()
         self.setup_movie_details_tab()
+        # Hide default tab buttons: screenshots use only side navigation.
+        self.tab_view._segmented_button.grid_remove()
         self.tab_view.set("Movie List")
     
     def load_data(self):
@@ -59,6 +61,38 @@ class MovieApp(CTk):
         """Save movie data to JSON file"""
         with open(self.data_file, "w") as file:
             json.dump(self.data, file, indent=4)
+
+    def _build_sidebar(self, parent, active_key):
+        """Create fixed, centered sidebar with consistent icons."""
+        left_menu = CTkFrame(parent, width=72, fg_color="#2c2c2c", corner_radius=12)
+        left_menu.pack(side="left", fill="y", padx=(0, 16))
+        left_menu.pack_propagate(False)
+
+        buttons_holder = CTkFrame(left_menu, fg_color="transparent")
+        buttons_holder.place(relx=0.5, rely=0.5, anchor="center")
+
+        nav_items = [
+            ("home", "⌂", lambda: self.tab_view.set("Movie List")),
+            ("add", "+", lambda: self.tab_view.set("Add Movie")),
+            ("menu", "☰", lambda: self.tab_view.set("Movies Page")),
+        ]
+
+        for key, icon, action in nav_items:
+            is_active = key == active_key
+            CTkButton(
+                buttons_holder,
+                text=icon,
+                width=36,
+                height=36,
+                corner_radius=8,
+                fg_color="#b8e84b" if is_active else "#f0f0f0",
+                text_color="black",
+                hover_color="#c8f15f" if is_active else "#ffffff",
+                font=("Arial", 16, "bold"),
+                command=action
+            ).pack(pady=9)
+
+        return left_menu
     
     def setup_add_movie_tab(self):
         """Setup the Add Movie tab in the provided 1:1 style."""
@@ -66,15 +100,9 @@ class MovieApp(CTk):
         tab.configure(fg_color="#1f1f1f")
 
         page = CTkFrame(tab, fg_color="#1f1f1f")
-        page.pack(fill="both", expand=True, padx=10, pady=10)
+        page.pack(fill="both", expand=True, padx=14, pady=14)
 
-        left_menu = CTkFrame(page, width=58, fg_color="#2c2c2c", corner_radius=12)
-        left_menu.pack(side="left", fill="y", padx=(0, 12))
-        left_menu.pack_propagate(False)
-
-        CTkButton(left_menu, text="⌂", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Movie List")).pack(pady=(24, 10))
-        CTkButton(left_menu, text="+", width=34, height=34, fg_color="#b8e84b", text_color="black", hover_color="#c8f15f").pack(pady=8)
-        CTkButton(left_menu, text="☰", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Movies Page")).pack(pady=8)
+        self._build_sidebar(page, "add")
 
         content = CTkFrame(page, fg_color="transparent")
         content.pack(side="left", fill="both", expand=True)
@@ -191,21 +219,17 @@ class MovieApp(CTk):
         self.friend_rows = []
 
         page = CTkFrame(tab, fg_color="#1f1f1f")
-        page.pack(fill="both", expand=True, padx=12, pady=12)
+        page.pack(fill="both", expand=True, padx=14, pady=14)
 
-        left_menu = CTkFrame(page, width=58, fg_color="#2c2c2c", corner_radius=12)
-        left_menu.pack(side="left", fill="y", padx=(0, 12))
-        left_menu.pack_propagate(False)
-
-        CTkButton(left_menu, text="H", width=34, height=34, fg_color="#c5ef4d", text_color="black", hover_color="#d3f767").pack(pady=(24, 10))
-        CTkButton(left_menu, text="+", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Add Movie")).pack(pady=8)
-        CTkButton(left_menu, text="M", width=34, height=34, fg_color="#d0d0d0", text_color="black", hover_color="#e8e8e8", command=lambda: self.tab_view.set("Movies Page")).pack(pady=8)
+        self._build_sidebar(page, "home")
 
         content = CTkFrame(page, fg_color="transparent")
         content.pack(side="left", fill="both", expand=True)
 
         left_column = CTkFrame(content, fg_color="transparent")
         left_column.pack(side="left", fill="both", expand=True, padx=(0, 12))
+        self.home_left_column = left_column
+        self.home_left_column.bind("<Configure>", self._on_home_left_column_configure)
 
         right_column = CTkFrame(content, width=330, fg_color="transparent")
         right_column.pack(side="left", fill="y")
@@ -222,30 +246,36 @@ class MovieApp(CTk):
         self.search_bar.bind("<KeyRelease>", self.apply_filter)
         CTkButton(search_wrap, text="Q", width=28, height=26, fg_color="#c5ef4d", text_color="black", hover_color="#d3f767", command=self.apply_filter).pack(side="left", padx=(0, 8))
 
-        self.filter_segment = CTkSegmentedButton(
-            top_bar,
-            values=["Name", "Genre", "Actors", "Years"],
-            width=360,
-            height=34,
-            fg_color="#2f2f2f",
-            selected_color="#c5ef4d",
-            selected_hover_color="#d3f767",
-            unselected_color="#2f2f2f",
-            unselected_hover_color="#404040",
-            text_color="white",
-            command=lambda _: self.apply_filter()
-        )
-        self.filter_segment.pack(side="left")
-        self.filter_segment.set("Name")
+        self.home_filter_field = "Name"
+        self.filter_buttons = {}
+        filter_wrap = CTkFrame(top_bar, fg_color="transparent")
+        filter_wrap.pack(side="left")
+        for option in ["Name", "Genre", "Actors", "Years"]:
+            btn = CTkButton(
+                filter_wrap,
+                text=option,
+                width=86,
+                height=34,
+                corner_radius=8,
+                fg_color="#2f2f2f",
+                text_color="white",
+                hover_color="#3f3f3f",
+                font=("Arial", 13, "bold"),
+                command=lambda value=option: self._set_home_filter(value)
+            )
+            btn.pack(side="left", padx=(0, 6))
+            self.filter_buttons[option] = btn
+        self._set_home_filter("Name", refresh=False)
 
         # Hero and cards
-        self.hero_frame = CTkFrame(left_column, fg_color="#2f2f2f", corner_radius=12, height=300)
+        self.hero_frame = CTkFrame(left_column, fg_color="#2f2f2f", corner_radius=12, height=340)
         self.hero_frame.pack(fill="x", pady=(0, 16))
         self.hero_frame.pack_propagate(False)
         self.hero_image_label = CTkLabel(self.hero_frame, text="")
         self.hero_image_label.pack(fill="both", expand=True, padx=2, pady=2)
+        self.hero_frame.bind("<Configure>", self._on_hero_frame_configure)
 
-        CTkLabel(left_column, text="Popular movies", font=("Arial", 34, "bold"), anchor="w").pack(fill="x", pady=(0, 8))
+        CTkLabel(left_column, text="Popular movies", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(0, 8))
         self.cards_grid = CTkFrame(left_column, fg_color="transparent")
         self.cards_grid.pack(fill="x")
 
@@ -259,28 +289,42 @@ class MovieApp(CTk):
         CTkButton(
             right_column,
             text="+ Add new",
-            height=44,
-            font=("Arial", 32, "bold"),
+            height=34,
+            font=("Arial", 16, "bold"),
             fg_color="#c5ef4d",
             text_color="black",
             hover_color="#d3f767",
             command=lambda: self.tab_view.set("Add Movie")
         ).pack(fill="x", pady=(0, 12))
 
-        CTkLabel(right_column, text="Currently watching", font=("Arial", 28, "bold"), anchor="w").pack(fill="x", pady=(4, 8))
+        CTkLabel(right_column, text="Currently watching", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(4, 8))
         self.recent_frame = CTkFrame(right_column, fg_color="#2f2f2f", corner_radius=10)
         self.recent_frame.pack(fill="x", pady=(0, 14))
 
-        CTkLabel(right_column, text="My Friends", font=("Arial", 28, "bold"), anchor="w").pack(fill="x", pady=(2, 8))
+        CTkLabel(right_column, text="My Friends", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(2, 8))
         self.friends_frame = CTkFrame(right_column, fg_color="#2f2f2f", corner_radius=10)
         self.friends_frame.pack(fill="x")
 
         self.refresh_movie_list()
         self.after(120, self.refresh_movie_list)
+        self.after(320, self.refresh_movie_list)
 
     def apply_filter(self, event=None):
         """Apply filter and re-render dashboard widgets"""
         self.refresh_movie_list()
+
+    def _set_home_filter(self, selected_option, refresh=True):
+        self.home_filter_field = selected_option
+        if hasattr(self, "filter_buttons"):
+            for option, btn in self.filter_buttons.items():
+                is_selected = option == selected_option
+                btn.configure(
+                    fg_color="#c5ef4d" if is_selected else "#2f2f2f",
+                    hover_color="#d3f767" if is_selected else "#404040",
+                    text_color="black" if is_selected else "white"
+                )
+        if refresh:
+            self.refresh_movie_list()
 
     def setup_movies_page_tab(self):
         """Setup dedicated page for all movies in grid view."""
@@ -290,38 +334,49 @@ class MovieApp(CTk):
         self.movies_page_images = []
 
         page = CTkFrame(tab, fg_color="#1f1f1f")
-        page.pack(fill="both", expand=True, padx=12, pady=12)
+        page.pack(fill="both", expand=True, padx=14, pady=14)
 
-        left_menu = CTkFrame(page, width=58, fg_color="#2c2c2c", corner_radius=12)
-        left_menu.pack(side="left", fill="y", padx=(0, 12))
-        left_menu.pack_propagate(False)
-        CTkButton(left_menu, text="⌂", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Movie List")).pack(pady=(24, 10))
-        CTkButton(left_menu, text="+", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Add Movie")).pack(pady=8)
-        CTkButton(left_menu, text="☰", width=34, height=34, fg_color="#b8e84b", text_color="black", hover_color="#c8f15f").pack(pady=8)
+        # Center the whole screen content and keep stable proportions.
+        shell = CTkFrame(page, fg_color="transparent")
+        shell.pack(fill="both", expand=True)
 
-        content = CTkFrame(page, fg_color="transparent")
-        content.pack(side="left", fill="both", expand=True)
+        self._build_sidebar(shell, "menu")
 
-        CTkLabel(content, text="My movie list", font=("Arial", 34, "bold")).pack(anchor="n", pady=(6, 12))
+        content_outer = CTkFrame(shell, fg_color="transparent")
+        content_outer.pack(side="left", fill="both", expand=True)
+
+        content = CTkFrame(content_outer, fg_color="transparent", width=1000)
+        content.pack(expand=True, fill="both")
+        content.pack_propagate(False)
+
+        CTkLabel(content, text="My movie list", font=("Arial", 40, "bold")).pack(anchor="n", pady=(2, 12))
 
         self.movies_sort_segment = CTkSegmentedButton(
             content,
             values=["Recently watched", "Highest rated", "Most popular"],
             width=520,
-            height=46,
-            fg_color="#3f3f3f",
+            height=52,
+            fg_color="#3a3a3a",
             selected_color="#b8e84b",
             selected_hover_color="#c8f15f",
-            unselected_color="#4a4a4a",
-            unselected_hover_color="#5a5a5a",
-            text_color="white",
+            unselected_color="#4f4f4f",
+            unselected_hover_color="#606060",
+            text_color="#f5f5f5",
+            font=("Arial", 14, "bold"),
             command=lambda _: self.refresh_movies_page()
         )
         self.movies_sort_segment.pack(anchor="w", pady=(0, 14))
         self.movies_sort_segment.set("Recently watched")
 
-        self.movies_scroll = CTkScrollableFrame(content, fg_color="#1f1f1f", corner_radius=0)
-        self.movies_scroll.pack(fill="both", expand=True)
+        self.movies_scroll = CTkScrollableFrame(
+            content,
+            fg_color="#1f1f1f",
+            corner_radius=0,
+            scrollbar_button_color="#b8e84b",
+            scrollbar_button_hover_color="#c8f15f",
+            scrollbar_fg_color="#2a2a2a"
+        )
+        self.movies_scroll.pack(fill="both", expand=True, pady=(0, 2))
 
         self.refresh_movies_page()
 
@@ -361,34 +416,35 @@ class MovieApp(CTk):
         for idx, movie in enumerate(movies):
             if idx % columns == 0:
                 row_frame = CTkFrame(self.movies_scroll, fg_color="transparent")
-                row_frame.pack(fill="x", pady=(0, 14))
+                row_frame.pack(fill="x", pady=(0, 18), anchor="n")
 
-            card = CTkFrame(row_frame, fg_color="#2f2f2f", corner_radius=10, width=235, height=210)
-            card.pack(side="left", padx=(0, 14))
+            card = CTkFrame(row_frame, fg_color="#2d2d2d", corner_radius=12, width=232, height=222)
+            card.pack(side="left", padx=(0, 14), anchor="n")
             card.pack_propagate(False)
 
             poster_path = self._resolve_image_path(movie)
-            poster_img = self._make_image_cover(poster_path, (220, 110))
+            poster_img = self._make_image_cover(poster_path, (216, 112))
             if poster_img:
                 self.movies_page_images.append(poster_img)
                 CTkLabel(card, image=poster_img, text="").pack(padx=8, pady=(8, 6))
             else:
-                CTkLabel(card, text="No image", width=220, height=110, fg_color="#444444", corner_radius=8).pack(padx=8, pady=(8, 6))
+                CTkLabel(card, text="No image", width=216, height=112, fg_color="#444444", corner_radius=8).pack(padx=8, pady=(8, 6))
 
             title = str(movie.get("title", "Unknown"))
             genre = str(movie.get("genre", ""))
             rating = self._movie_rating_value(movie)
             stars = "★" * max(0, min(5, rating))
-            CTkLabel(card, text=title, anchor="w", font=("Arial", 16, "bold")).pack(fill="x", padx=8)
-            CTkLabel(card, text=genre, anchor="w", text_color="#a8a8a8", font=("Arial", 12)).pack(fill="x", padx=8, pady=(0, 4))
-            CTkLabel(card, text=f"{stars}", anchor="e", text_color="#b8e84b").pack(fill="x", padx=8, pady=(0, 4))
+            CTkLabel(card, text=title, anchor="w", font=("Arial", 19, "bold")).pack(fill="x", padx=8)
+            CTkLabel(card, text=genre, anchor="w", text_color="#a8a8a8", font=("Arial", 11)).pack(fill="x", padx=8, pady=(0, 2))
+            CTkLabel(card, text=f"{stars}", anchor="e", text_color="#b8e84b", font=("Arial", 14, "bold")).pack(fill="x", padx=8, pady=(0, 4))
             CTkButton(
                 card,
                 text="Details",
-                height=28,
+                height=30,
                 fg_color="#b8e84b",
                 text_color="black",
                 hover_color="#c8f15f",
+                font=("Arial", 12, "bold"),
                 command=lambda m=movie: self.open_movie_details(m)
             ).pack(fill="x", padx=8, pady=(0, 8))
 
@@ -400,37 +456,42 @@ class MovieApp(CTk):
         self.current_detail_movie = None
 
         page = CTkFrame(tab, fg_color="#1f1f1f")
-        page.pack(fill="both", expand=True, padx=12, pady=12)
+        page.pack(fill="both", expand=True, padx=14, pady=14)
 
-        left_menu = CTkFrame(page, width=58, fg_color="#2c2c2c", corner_radius=12)
-        left_menu.pack(side="left", fill="y", padx=(0, 12))
-        left_menu.pack_propagate(False)
-        CTkButton(left_menu, text="⌂", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Movie List")).pack(pady=(24, 10))
-        CTkButton(left_menu, text="+", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Add Movie")).pack(pady=8)
-        CTkButton(left_menu, text="☰", width=34, height=34, fg_color="#f0f0f0", text_color="black", hover_color="#ffffff", command=lambda: self.tab_view.set("Movies Page")).pack(pady=8)
+        shell = CTkFrame(page, fg_color="transparent")
+        shell.pack(fill="both", expand=True)
 
-        content = CTkFrame(page, fg_color="transparent")
-        content.pack(side="left", fill="both", expand=True)
+        self._build_sidebar(shell, "menu")
 
-        CTkLabel(content, text="Details", font=("Arial", 36, "bold")).pack(anchor="n", pady=(6, 10))
+        content_outer = CTkFrame(shell, fg_color="transparent")
+        content_outer.pack(side="left", fill="both", expand=True)
+
+        content = CTkFrame(content_outer, fg_color="transparent", width=1030)
+        content.pack(expand=True, fill="both")
+        content.pack_propagate(False)
+
+        CTkLabel(content, text="Details", font=("Arial", 40, "bold")).pack(anchor="n", pady=(2, 10))
 
         body = CTkFrame(content, fg_color="transparent")
         body.pack(fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=1, uniform="details")
+        body.grid_columnconfigure(1, weight=0, uniform="details")
+        body.grid_rowconfigure(0, weight=1)
 
         left_col = CTkFrame(body, fg_color="transparent")
-        left_col.pack(side="left", fill="both", expand=True, padx=(0, 16))
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
 
-        right_col = CTkFrame(body, fg_color="transparent", width=420)
-        right_col.pack(side="left", fill="y")
-        right_col.pack_propagate(False)
+        right_col = CTkFrame(body, fg_color="transparent", width=440)
+        right_col.grid(row=0, column=1, sticky="ns")
+        right_col.grid_propagate(False)
 
-        self.details_poster_box = CTkFrame(left_col, fg_color="#2f2f2f", corner_radius=10, height=360)
+        self.details_poster_box = CTkFrame(left_col, fg_color="#2f2f2f", corner_radius=12, height=330)
         self.details_poster_box.pack(fill="x", pady=(0, 10))
         self.details_poster_box.pack_propagate(False)
         self.details_poster_label = CTkLabel(self.details_poster_box, text="")
         self.details_poster_label.pack(fill="both", expand=True, padx=2, pady=2)
 
-        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 42, "bold"))
+        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 46, "bold"))
         self.details_title_label.pack(fill="x", pady=(0, 2))
         CTkLabel(left_col, text="My comment", anchor="w", text_color="#b8e84b", font=("Arial", 34, "bold")).pack(fill="x", pady=(0, 4))
         self.details_comment_label = CTkLabel(
@@ -440,19 +501,19 @@ class MovieApp(CTk):
             anchor="nw",
             wraplength=620,
             text_color="#d8d8d8",
-            font=("Arial", 26)
+            font=("Arial", 14)
         )
         self.details_comment_label.pack(fill="both", expand=True)
 
-        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 36, "bold")).pack(fill="x", pady=(10, 4))
-        self.details_rating_label = CTkLabel(right_col, text="☆☆☆☆☆", anchor="w", text_color="#b8e84b", font=("Arial", 48))
+        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 36, "bold")).pack(fill="x", pady=(10, 2))
+        self.details_rating_label = CTkLabel(right_col, text="☆☆☆☆☆", anchor="w", text_color="#b8e84b", font=("Arial", 48, "bold"))
         self.details_rating_label.pack(fill="x", pady=(0, 10))
 
-        self.details_year_label = CTkLabel(right_col, text="Year: -", anchor="w", font=("Arial", 34, "bold"))
-        self.details_year_label.pack(fill="x", pady=(0, 10))
-        self.details_actors_label = CTkLabel(right_col, text="Actors: -", justify="left", wraplength=390, anchor="w", font=("Arial", 32, "bold"))
-        self.details_actors_label.pack(fill="x", pady=(0, 10))
-        self.details_genre_label = CTkLabel(right_col, text="Genre: -", justify="left", wraplength=390, anchor="w", font=("Arial", 32, "bold"))
+        self.details_year_label = CTkLabel(right_col, text="Year: -", anchor="w", justify="left", wraplength=410, font=("Arial", 16, "bold"))
+        self.details_year_label.pack(fill="x", pady=(0, 8))
+        self.details_actors_label = CTkLabel(right_col, text="Actors: -", justify="left", wraplength=410, anchor="w", font=("Arial", 16, "bold"))
+        self.details_actors_label.pack(fill="x", pady=(0, 8))
+        self.details_genre_label = CTkLabel(right_col, text="Genre: -", justify="left", wraplength=410, anchor="w", font=("Arial", 16, "bold"))
         self.details_genre_label.pack(fill="x", pady=(0, 14))
 
         CTkLabel(right_col, text="Currently watching", anchor="w", font=("Arial", 24, "bold")).pack(fill="x", pady=(8, 8))
@@ -493,7 +554,7 @@ class MovieApp(CTk):
             stars = "★" * max(0, min(5, rating)) + "☆" * (5 - max(0, min(5, rating)))
 
             poster_path = self._resolve_image_path(movie)
-            poster_img = self._make_image_cover(poster_path, (660, 340))
+            poster_img = self._make_image_cover(poster_path, (640, 314))
             if poster_img:
                 self.details_poster_label.configure(image=poster_img, text="")
             else:
@@ -502,9 +563,9 @@ class MovieApp(CTk):
             self.details_title_label.configure(text=title)
             self.details_comment_label.configure(text=comment)
             self.details_rating_label.configure(text=stars)
-            self.details_year_label.configure(text=f"Year: {year}")
-            self.details_actors_label.configure(text=f"Actors: {actors}")
-            self.details_genre_label.configure(text=f"Genre: {genre}")
+            self.details_year_label.configure(text=f"Year: {year}", text_color="#dcdcdc")
+            self.details_actors_label.configure(text=f"Actors: {actors}", text_color="#dcdcdc")
+            self.details_genre_label.configure(text=f"Genre: {genre}", text_color="#dcdcdc")
 
         for widget in self.details_watch_frame.winfo_children():
             widget.destroy()
@@ -520,18 +581,18 @@ class MovieApp(CTk):
             row_inner.pack(fill="x", padx=6, pady=6)
 
             thumb_path = self._resolve_image_path(watch_movie)
-            thumb_img = self._make_image_cover(thumb_path, (110, 62))
+            thumb_img = self._make_image_cover(thumb_path, (120, 68))
             if thumb_img:
                 CTkLabel(row_inner, image=thumb_img, text="").pack(side="left", padx=(0, 8))
             else:
-                CTkLabel(row_inner, text="No image", width=110, height=62, fg_color="#4a4a4a", corner_radius=6).pack(side="left", padx=(0, 8))
+                CTkLabel(row_inner, text="No image", width=120, height=68, fg_color="#4a4a4a", corner_radius=6).pack(side="left", padx=(0, 8))
 
             title = str(watch_movie.get("title", "Untitled"))
             year = str(watch_movie.get("year", ""))
             meta = CTkFrame(row_inner, fg_color="transparent")
             meta.pack(side="left", fill="both", expand=True)
-            CTkLabel(meta, text=f"{title}  •  {year}", anchor="w", font=("Arial", 18, "bold")).pack(fill="x", pady=(2, 1))
-            CTkLabel(meta, text=str(watch_movie.get("genre", "")), anchor="w", text_color="#c9c9c9").pack(fill="x")
+            CTkLabel(meta, text=f"{title}  •  {year}", anchor="w", font=("Arial", 18, "bold")).pack(fill="x", pady=(1, 0))
+            CTkLabel(meta, text=str(watch_movie.get("genre", "")), anchor="w", text_color="#c9c9c9", font=("Arial", 11)).pack(fill="x")
             CTkButton(
                 meta,
                 text="Open",
@@ -604,7 +665,7 @@ class MovieApp(CTk):
 
     def _get_filtered_movies(self):
         filter_text = self.search_bar.get().strip().lower()
-        field = self.filter_segment.get()
+        field = getattr(self, "home_filter_field", "Name")
         results = []
         for movie in self.data.get("movies", []):
             title = str(movie.get("title", "")).lower()
@@ -639,6 +700,41 @@ class MovieApp(CTk):
                     poster_movies.append(movie)
         return poster_movies
 
+    def _on_hero_frame_configure(self, event=None):
+        self._render_hero_image()
+
+    def _on_home_left_column_configure(self, event=None):
+        """Scale hero box height with available space (better fullscreen look)."""
+        if not hasattr(self, "hero_frame") or not hasattr(self, "home_left_column"):
+            return
+        column_h = self.home_left_column.winfo_height()
+        if column_h <= 0:
+            return
+        target_h = max(320, min(460, int(column_h * 0.46)))
+        if self.hero_frame.cget("height") != target_h:
+            self.hero_frame.configure(height=target_h)
+
+    def _render_hero_image(self):
+        if not hasattr(self, "hero_frame") or not hasattr(self, "hero_image_label"):
+            return
+
+        hero_movie = getattr(self, "current_hero_movie", None)
+        hero_path = self._resolve_image_path(hero_movie) if hero_movie else None
+        if not hero_path:
+            self.hero_image_label.configure(image=None, text="No image")
+            return
+
+        hero_w = self.hero_frame.winfo_width() - 4
+        hero_h = self.hero_frame.winfo_height() - 4
+        if hero_w < 120 or hero_h < 80:
+            return
+
+        hero_img = self._make_image_cover(hero_path, (hero_w, hero_h))
+        if hero_img:
+            self.hero_image_label.configure(image=hero_img, text="")
+        else:
+            self.hero_image_label.configure(image=None, text="No image")
+
     def refresh_movie_list(self):
         """Refresh all dashboard areas"""
         filtered_movies = self._get_filtered_movies()
@@ -647,16 +743,8 @@ class MovieApp(CTk):
         all_poster_movies = self._movies_with_posters(self.data.get("movies", []))
 
         # Hero image
-        hero_movie = poster_movies[0] if poster_movies else (all_poster_movies[0] if all_poster_movies else None)
-        hero_path = self._resolve_image_path(hero_movie) if hero_movie else None
-        self.update_idletasks()
-        hero_w = max(self.hero_frame.winfo_width() - 4, 300)
-        hero_h = max(self.hero_frame.winfo_height() - 4, 180)
-        hero_img = self._make_image_cover(hero_path, (hero_w, hero_h))
-        if hero_img:
-            self.hero_image_label.configure(image=hero_img, text="")
-        else:
-            self.hero_image_label.configure(image=None, text="No image")
+        self.current_hero_movie = poster_movies[0] if poster_movies else (all_poster_movies[0] if all_poster_movies else None)
+        self.after_idle(self._render_hero_image)
 
         # Cards
         for widget in self.cards_grid.winfo_children():
@@ -673,27 +761,33 @@ class MovieApp(CTk):
             CTkLabel(self.cards_grid, text="No movies found for this filter.", text_color="lightgray").pack(anchor="w")
         else:
             for movie in card_movies:
-                card = CTkFrame(self.cards_grid, fg_color="#2f2f2f", corner_radius=10)
-                card.pack(side="left", fill="both", expand=True, padx=(0, 10), pady=(0, 10))
+                card = CTkFrame(self.cards_grid, fg_color="#2b2b2b", corner_radius=12, width=248, height=228, border_width=1, border_color="#3d3d3d")
+                card.pack(side="left", fill="y", padx=(0, 12), pady=(0, 10))
+                card.pack_propagate(False)
 
                 poster_path = self._resolve_image_path(movie)
-                poster_img = self._make_image(poster_path, (228, 120))
+                poster_img = self._make_image_cover(poster_path, (232, 122))
                 if poster_img:
-                    CTkLabel(card, image=poster_img, text="").pack(pady=(8, 6))
+                    CTkLabel(card, image=poster_img, text="").pack(pady=(8, 6), padx=8)
                 else:
-                    CTkLabel(card, text="No image", width=228, height=120).pack(pady=(8, 6))
+                    CTkLabel(card, text="No image", width=232, height=122, fg_color="#444444", corner_radius=8).pack(pady=(8, 6), padx=8)
 
                 CTkLabel(card, text=str(movie.get("title", "Unknown")), font=("Arial", 16, "bold"), anchor="w").pack(fill="x", padx=10)
-                CTkLabel(card, text=str(movie.get("genre", "")), text_color="lightgray", anchor="w").pack(fill="x", padx=10, pady=(0, 6))
+                info_row = CTkFrame(card, fg_color="transparent")
+                info_row.pack(fill="x", padx=10, pady=(0, 6))
+                CTkLabel(info_row, text=str(movie.get("genre", "")), text_color="#bdbdbd", anchor="w", font=("Arial", 12)).pack(side="left")
+                rating = self._movie_rating_value(movie)
+                CTkLabel(info_row, text=f"{rating} ★" if rating else "☆", text_color="#b8e84b", anchor="e", font=("Arial", 12, "bold")).pack(side="right")
                 CTkButton(
                     card,
                     text="Details",
-                    height=30,
+                    height=32,
                     fg_color="#b8e84b",
                     text_color="black",
                     hover_color="#c8f15f",
+                    font=("Arial", 12, "bold"),
                     command=lambda m=movie: self.open_movie_details(m)
-                ).pack(fill="x", padx=10, pady=(0, 10))
+                ).pack(fill="x", padx=10, pady=(2, 10))
 
         # Recently added
         for widget in self.recent_frame.winfo_children():

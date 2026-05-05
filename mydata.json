@@ -1,57 +1,6 @@
 {
     "movies": [
         {
-            "id": 1,
-            "title": "Inception",
-            "actors": [
-                "Leonardo DiCaprio",
-                "Joseph Gordon-Levitt",
-                "Ellen Page"
-            ],
-            "genre": "Science Fiction",
-            "year": 2010
-        },
-        {
-            "id": 2,
-            "title": "The Matrix",
-            "actors": [
-                "Keanu Reeves",
-                "Laurence Fishburne",
-                "Carrie-Anne Moss"
-            ],
-            "genre": "Action",
-            "year": 1999
-        },
-        {
-            "id": 3,
-            "title": "Interstellar",
-            "actors": [
-                "Matthew McConaughey",
-                "Anne Hathaway",
-                "Jessica Chastain"
-            ],
-            "genre": "Science Fiction",
-            "year": 2014
-        },
-        {
-            "title": "Spider-Man",
-            "genre": "Fantasy",
-            "actors": "Tobby Mcguire",
-            "year": "2002"
-        },
-        {
-            "title": "sdgsgsg",
-            "genre": "sdgsdg",
-            "actors": "sdgsdgs",
-            "year": "2000"
-        },
-        {
-            "title": "test",
-            "genre": "hjbjk",
-            "actors": "kljghjkb",
-            "year": "599"
-        },
-        {
             "title": "sdfsf",
             "genre": "sdfsdf",
             "actors": "dssdf",
@@ -66,15 +15,6 @@
             "image": "assets\\posters\\pexels-nathan-rostampour-3135695-12104694.jpg",
             "comment": "Super, 100%",
             "rating": "5"
-        },
-        {
-            "title": "\u0444\u0433\u0444\u0433",
-            "genre": "",
-            "actors": "",
-            "year": "",
-            "image": "",
-            "comment": "",
-            "rating": "1"
         },
         {
             "title": "\u0440\u0434\u0433\u0434\u0433",

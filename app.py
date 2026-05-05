@@ -4,7 +4,7 @@ from tkinter import filedialog, Canvas
 import os
 import shutil
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageDraw
 
 set_appearance_mode("dark")
 
@@ -32,6 +32,9 @@ class MovieApp(CTk):
         self.configure(fg_color="#191919")
         self.std_btn_height = 34
         self.std_btn_font = ("Arial", 12, "bold")
+        self._ctk_image_cache = {}
+        self._movies_page_last_signature = None
+        self._movies_page_last_width = 0
 
         # Create main container
         self.main_container = CTkFrame(self, fg_color="#1f1f1f", corner_radius=16)
@@ -355,6 +358,8 @@ class MovieApp(CTk):
         tab.configure(fg_color="#1f1f1f")
 
         self.movies_page_images = []
+        self.movies_sort_mode = "Recently watched"
+        self.movies_page_refresh_job = None
 
         page = CTkFrame(tab, fg_color="#1f1f1f")
         page.pack(fill="both", expand=True, padx=14, pady=14)
@@ -377,19 +382,22 @@ class MovieApp(CTk):
         self.movies_sort_segment = CTkSegmentedButton(
             content,
             values=["Recently watched", "Highest rated", "Most popular"],
-            width=520,
-            height=52,
-            fg_color="#3a3a3a",
+            width=540,
+            height=46,
+            corner_radius=12,
+            fg_color="#3f3f3f",
             selected_color="#b8e84b",
-            selected_hover_color="#c8f15f",
-            unselected_color="#4f4f4f",
-            unselected_hover_color="#606060",
-            text_color="#f5f5f5",
-            font=("Arial", 14, "bold"),
-            command=lambda _: self.refresh_movies_page()
+            selected_hover_color="#d7ff6a",
+            unselected_color="#595959",
+            unselected_hover_color="#6b6b6b",
+            text_color="white",
+            text_color_disabled="#aaaaaa",
+            font=("Arial", 13, "bold"),
+            command=self._set_movies_sort_mode
         )
-        self.movies_sort_segment.pack(anchor="w", pady=(0, 14))
-        self.movies_sort_segment.set("Recently watched")
+        self.movies_sort_segment.pack(anchor="center", pady=(0, 14))
+        self.movies_sort_segment.set(self.movies_sort_mode)
+        self._refresh_movies_sort_segment_text()
 
         self.movies_scroll = CTkScrollableFrame(
             content,
@@ -400,7 +408,40 @@ class MovieApp(CTk):
             scrollbar_fg_color="#2a2a2a"
         )
         self.movies_scroll.pack(fill="both", expand=True, pady=(0, 2))
+        self.movies_scroll.bind("<Configure>", self._schedule_movies_page_refresh)
 
+        self.movies_grid_frame = CTkFrame(self.movies_scroll, fg_color="transparent")
+        self.movies_grid_frame.pack(fill="both", expand=True)
+        self.movies_grid_frame.pack_propagate(False)
+
+        self.refresh_movies_page()
+        self.after(120, self.refresh_movies_page)
+        self.after(260, self.refresh_movies_page)
+
+    def _set_movies_sort_mode(self, mode: str):
+        self.movies_sort_mode = mode
+        self._refresh_movies_sort_segment_text()
+        self.refresh_movies_page()
+
+    def _refresh_movies_sort_segment_text(self):
+        """Ensure active sort tab uses black text."""
+        if not hasattr(self, "movies_sort_segment"):
+            return
+        current_mode = self.movies_sort_mode
+        buttons = getattr(self.movies_sort_segment, "_buttons_dict", {})
+        for mode, btn in buttons.items():
+            btn.configure(text_color="black" if mode == current_mode else "white")
+
+    def _schedule_movies_page_refresh(self, event=None):
+        new_width = event.width if event is not None else self.movies_scroll.winfo_width()
+        if abs(new_width - self._movies_page_last_width) < 6:
+            return
+        if self.movies_page_refresh_job is not None:
+            self.after_cancel(self.movies_page_refresh_job)
+        self.movies_page_refresh_job = self.after(80, self._run_movies_page_refresh)
+
+    def _run_movies_page_refresh(self):
+        self.movies_page_refresh_job = None
         self.refresh_movies_page()
 
     def _movie_rating_value(self, movie):
@@ -411,7 +452,7 @@ class MovieApp(CTk):
 
     def _sorted_movies_for_page(self):
         movies = list(self.data.get("movies", []))
-        mode = self.movies_sort_segment.get() if hasattr(self, "movies_sort_segment") else "Recently watched"
+        mode = self.movies_sort_mode
         if mode == "Highest rated":
             movies.sort(key=lambda m: self._movie_rating_value(m), reverse=True)
         elif mode == "Most popular":
@@ -425,51 +466,117 @@ class MovieApp(CTk):
         if not hasattr(self, "movies_scroll"):
             return
 
-        self.movies_page_images = []
-        for widget in self.movies_scroll.winfo_children():
-            widget.destroy()
-
-        movies = self._sorted_movies_for_page()
-        if not movies:
-            CTkLabel(self.movies_scroll, text="No movies yet. Add your first one from Add Movie.", text_color="lightgray").pack(anchor="w", padx=10, pady=10)
+        # Avoid re-layout too early (width can be 1 right after tab switch).
+        viewport_w = self.movies_scroll.winfo_width()
+        if viewport_w < 500:
+            self.after(120, self.refresh_movies_page)
             return
 
-        columns = 4
-        row_frame = None
-        for idx, movie in enumerate(movies):
-            if idx % columns == 0:
-                row_frame = CTkFrame(self.movies_scroll, fg_color="transparent")
-                row_frame.pack(fill="x", pady=(0, 18), anchor="n")
+        movies = self._sorted_movies_for_page()
+        signature = (
+            self.movies_sort_mode,
+            viewport_w // 6,
+            tuple(
+                (
+                    str(m.get("title", "")),
+                    str(m.get("year", "")),
+                    str(m.get("image", "")),
+                    str(m.get("rating", "")),
+                    str(m.get("genre", "")),
+                )
+                for m in movies
+            ),
+        )
+        if signature == self._movies_page_last_signature:
+            return
+        self._movies_page_last_signature = signature
+        self._movies_page_last_width = viewport_w
 
-            card = CTkFrame(row_frame, fg_color="#2d2d2d", corner_radius=12, width=232, height=222)
-            card.pack(side="left", padx=(0, 14), anchor="n")
+        self.movies_page_images = []
+        for widget in self.movies_grid_frame.winfo_children():
+            widget.destroy()
+
+        if not movies:
+            empty = CTkLabel(self.movies_grid_frame, text="No movies yet. Add your first one from Add Movie.", text_color="lightgray", anchor="center")
+            empty.pack(fill="both", expand=True)
+            return
+
+        # Modern responsive card layout.
+        card_w = 245
+        card_h = 250
+        h_gap = 18
+        v_gap = 18
+
+        usable_w = max(0, viewport_w - 24)
+        max_cols = max(1, int((usable_w + h_gap) // (card_w + h_gap)))
+        cols = min(max(1, max_cols), 5)
+
+        # Center each row by computing left margin.
+        row_w = cols * card_w + (cols - 1) * h_gap
+        left_margin = max(0, int((usable_w - row_w) / 2))
+
+        for idx, movie in enumerate(movies):
+            row = idx // cols
+            col = idx % cols
+
+            x = left_margin + col * (card_w + h_gap)
+            y = 0 + row * (card_h + v_gap)
+
+            card = CTkFrame(
+                self.movies_grid_frame,
+                fg_color="#2f2f2f",
+                corner_radius=14,
+                width=card_w,
+                height=card_h,
+                border_width=1,
+                border_color="#454545"
+            )
+            card.place(x=x, y=y)
             card.pack_propagate(False)
 
             poster_path = self._resolve_image_path(movie)
-            poster_img = self._make_image_cover(poster_path, (216, 112))
+            poster_img = self._make_image_cover_rounded(poster_path, (card_w - 20, 126), radius=12)
+
             if poster_img:
                 self.movies_page_images.append(poster_img)
-                CTkLabel(card, image=poster_img, text="").pack(padx=8, pady=(8, 6))
+                poster_label = CTkLabel(card, image=poster_img, text="")
             else:
-                CTkLabel(card, text="No image", width=216, height=112, fg_color="#444444", corner_radius=8).pack(padx=8, pady=(8, 6))
+                poster_label = CTkLabel(card, text="No image", width=card_w - 20, height=126, fg_color="#444444", corner_radius=10)
+
+            poster_label.pack(padx=10, pady=(10, 8))
+            poster_label.bind("<Button-1>", lambda _e, m=movie: self.open_movie_details(m))
+            poster_label.configure(cursor="hand2")
 
             title = str(movie.get("title", "Unknown"))
             genre = str(movie.get("genre", ""))
             rating = self._movie_rating_value(movie)
             stars = "★" * max(0, min(5, rating))
-            CTkLabel(card, text=title, anchor="w", font=("Arial", 19, "bold")).pack(fill="x", padx=8)
-            CTkLabel(card, text=genre, anchor="w", text_color="#a8a8a8", font=("Arial", 11)).pack(fill="x", padx=8, pady=(0, 2))
-            CTkLabel(card, text=f"{stars}", anchor="e", text_color="#b8e84b", font=("Arial", 14, "bold")).pack(fill="x", padx=8, pady=(0, 4))
+
+            info_top = CTkFrame(card, fg_color="transparent")
+            info_top.pack(fill="x", padx=10, pady=(0, 4))
+            CTkLabel(info_top, text=title, anchor="w", font=("Arial", 14, "bold")).pack(side="left")
+            CTkLabel(info_top, text=f"{stars}", anchor="e", text_color="#b8e84b", font=("Arial", 13, "bold")).pack(side="right")
+
+            CTkLabel(card, text=genre, anchor="w", text_color="#a8a8a8", font=("Arial", 11)).pack(fill="x", padx=10)
+
+            action_row = CTkFrame(card, fg_color="transparent", height=54)
+            action_row.pack(side="bottom", fill="x", padx=10, pady=(8, 10))
+            action_row.pack_propagate(False)
+
             CTkButton(
-                card,
+                action_row,
                 text="Details",
-                height=self.std_btn_height,
+                height=40,
                 fg_color="#b8e84b",
                 text_color="black",
                 hover_color="#c8f15f",
-                font=self.std_btn_font,
+                font=("Arial", 13, "bold"),
                 command=lambda m=movie: self.open_movie_details(m)
-            ).pack(fill="x", padx=8, pady=(0, 8))
+            ).pack(fill="both", expand=True)
+
+        total_rows = (len(movies) + cols - 1) // cols
+        total_h = total_rows * (card_h + v_gap)
+        self.movies_grid_frame.configure(height=total_h)
 
     def setup_movie_details_tab(self):
         """Setup single movie details page."""
@@ -646,9 +753,16 @@ class MovieApp(CTk):
         if not image_path:
             return None
         try:
-            img = Image.open(image_path)
+            mtime = os.path.getmtime(image_path)
+            cache_key = ("plain", image_path, size[0], size[1], int(mtime))
+            cached = self._ctk_image_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+            img = Image.open(image_path).convert("RGBA")
             img = img.resize(size, Image.Resampling.LANCZOS)
             ctk_img = CTkImage(light_image=img, dark_image=img, size=size)
+            self._ctk_image_cache[cache_key] = ctk_img
             self._ui_images.append(ctk_img)
             return ctk_img
         except Exception:
@@ -660,7 +774,13 @@ class MovieApp(CTk):
             return None
         try:
             target_w, target_h = size
-            img = Image.open(image_path)
+            mtime = os.path.getmtime(image_path)
+            cache_key = ("cover", image_path, target_w, target_h, int(mtime))
+            cached = self._ctk_image_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+            img = Image.open(image_path).convert("RGBA")
             src_w, src_h = img.size
 
             if src_w == 0 or src_h == 0:
@@ -682,6 +802,51 @@ class MovieApp(CTk):
 
             img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
             ctk_img = CTkImage(light_image=img, dark_image=img, size=(target_w, target_h))
+            self._ctk_image_cache[cache_key] = ctk_img
+            self._ui_images.append(ctk_img)
+            return ctk_img
+        except Exception:
+            return None
+
+    def _make_image_cover_rounded(self, image_path, size, radius=10):
+        """Create cover image with rounded corners."""
+        if not image_path:
+            return None
+        try:
+            target_w, target_h = size
+            mtime = os.path.getmtime(image_path)
+            cache_key = ("cover_rounded", image_path, target_w, target_h, radius, int(mtime))
+            cached = self._ctk_image_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+            img = Image.open(image_path).convert("RGBA")
+            src_w, src_h = img.size
+
+            if src_w == 0 or src_h == 0:
+                return None
+
+            src_ratio = src_w / src_h
+            target_ratio = target_w / target_h
+
+            if src_ratio > target_ratio:
+                new_w = int(src_h * target_ratio)
+                left = (src_w - new_w) // 2
+                img = img.crop((left, 0, left + new_w, src_h))
+            else:
+                new_h = int(src_w / target_ratio)
+                top = (src_h - new_h) // 2
+                img = img.crop((0, top, src_w, top + new_h))
+
+            img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+            mask = Image.new("L", (target_w, target_h), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0, target_w, target_h), radius=radius, fill=255)
+            img.putalpha(mask)
+
+            ctk_img = CTkImage(light_image=img, dark_image=img, size=(target_w, target_h))
+            self._ctk_image_cache[cache_key] = ctk_img
             self._ui_images.append(ctk_img)
             return ctk_img
         except Exception:
@@ -790,7 +955,7 @@ class MovieApp(CTk):
                 card.pack_propagate(False)
 
                 poster_path = self._resolve_image_path(movie)
-                poster_img = self._make_image_cover(poster_path, (232, 122))
+                poster_img = self._make_image_cover_rounded(poster_path, (232, 122), radius=10)
                 if poster_img:
                     CTkLabel(card, image=poster_img, text="").pack(pady=(8, 6), padx=8)
                 else:

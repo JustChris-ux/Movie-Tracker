@@ -21,7 +21,9 @@ class MovieApp(CTk):
         self.data_file = os.path.join(current_path, "mydata.json")
         self.assets_dir = os.path.join(current_path, "assets")
         self.images_dir = os.path.join(self.assets_dir, "posters")
+        self.icons_dir = os.path.join(self.assets_dir, "icons")
         os.makedirs(self.images_dir, exist_ok=True)
+        os.makedirs(self.icons_dir, exist_ok=True)
 
         # Image state for current movie
         self.selected_image_path = None
@@ -38,6 +40,18 @@ class MovieApp(CTk):
         self._movies_page_last_width = 0
         self._details_resize_job = None
         self._details_last_render_key = None
+        self.home_icon_image = self._create_icon_from_png(
+            os.path.join(self.icons_dir, "home.png"),
+            size=16
+        )
+        self.search_icon_image = self._create_icon_from_png(
+            os.path.join(self.icons_dir, "search.png"),
+            size=16
+        )
+        self.menu_icon_image = self._create_icon_from_png(
+            os.path.join(self.icons_dir, "menu.png"),
+            size=16
+        )
 
         # Create main container
         self.main_container = CTkFrame(self, fg_color="#1f1f1f", corner_radius=16)
@@ -88,9 +102,18 @@ class MovieApp(CTk):
 
         for key, icon, action in nav_items:
             is_active = key == active_key
+            btn_text = ""
+            btn_image = None
+            if key == "home":
+                btn_image = self.home_icon_image
+            elif key == "menu":
+                btn_image = self.menu_icon_image
+            else:
+                btn_text = icon
             CTkButton(
                 buttons_holder,
-                text=icon,
+                text=btn_text,
+                image=btn_image,
                 width=36,
                 height=36,
                 corner_radius=8,
@@ -245,36 +268,43 @@ class MovieApp(CTk):
 
         content = CTkFrame(page, fg_color="transparent")
         content.pack(side="left", fill="both", expand=True)
+        content.grid_columnconfigure(0, weight=65)
+        content.grid_columnconfigure(1, weight=0, minsize=12)
+        content.grid_columnconfigure(2, weight=35)
+        content.grid_rowconfigure(0, weight=1)
 
         left_column = CTkFrame(content, fg_color="transparent")
-        left_column.pack(side="left", fill="both", expand=True, padx=(0, 12))
+        left_column.grid(row=0, column=0, sticky="nsew")
         self.home_left_column = left_column
         self.home_left_column.bind("<Configure>", self._on_home_left_column_configure)
 
-        right_column = CTkFrame(content, width=330, fg_color="transparent")
-        right_column.pack(side="left", fill="y")
-        right_column.pack_propagate(False)
+        right_column = CTkFrame(content, fg_color="transparent")
+        right_column.grid(row=0, column=2, sticky="nsew")
 
         # Top bar
         top_bar = CTkFrame(left_column, fg_color="transparent")
         top_bar.pack(fill="x", pady=(0, 10))
 
-        search_wrap = CTkFrame(top_bar, fg_color="#2f2f2f", corner_radius=8)
+        search_wrap = CTkFrame(top_bar, fg_color="#2f2f2f", corner_radius=8, width=430, height=self.std_btn_height + 6)
         search_wrap.pack(side="left", padx=(0, 10))
-        self.search_bar = CTkEntry(search_wrap, width=260, height=34, placeholder_text="Search", fg_color="#2f2f2f", border_width=0)
-        self.search_bar.pack(side="left", padx=(10, 4))
+        search_wrap.pack_propagate(False)
+        self.search_bar = CTkEntry(search_wrap, width=360, height=34, placeholder_text="Search", fg_color="#2f2f2f", border_width=0)
+        self.search_bar.pack(side="left", fill="y", padx=(10, 46), pady=0, expand=True)
         self.search_bar.bind("<KeyRelease>", self.apply_filter)
-        CTkButton(
+        self.search_btn = CTkButton(
             search_wrap,
-            text="Q",
-            width=32,
-            height=self.std_btn_height,
+            text="",
+            image=self.search_icon_image,
+            width=28,
+            height=28,
+            corner_radius=6,
             fg_color="#c5ef4d",
             text_color="black",
             hover_color="#d3f767",
             font=self.std_btn_font,
             command=self.apply_filter
-        ).pack(side="left", padx=(0, 8))
+        )
+        self.search_btn.place(relx=1.0, rely=0.5, x=-8, anchor="e")
 
         self.home_filter_field = "Name"
         self.filter_buttons = {}
@@ -862,6 +892,14 @@ class MovieApp(CTk):
         except Exception:
             return None
 
+    def _create_icon_from_png(self, png_path, size=16):
+        """Load icon directly from PNG file."""
+        try:
+            img = Image.open(png_path).convert("RGBA")
+            return CTkImage(light_image=img, dark_image=img, size=(size, size))
+        except Exception:
+            return None
+
     def _make_image_cover(self, image_path, size):
         """Create image in cover mode: fill area without distortion."""
         if not image_path:
@@ -1057,7 +1095,8 @@ class MovieApp(CTk):
         if hero_w < 120 or hero_h < 80:
             return
 
-        hero_img = self._make_image_cover(hero_path, (hero_w, hero_h))
+        adaptive_radius = max(10, min(24, int(min(hero_w, hero_h) * 0.05)))
+        hero_img = self._make_image_cover_rounded(hero_path, (hero_w, hero_h), radius=adaptive_radius)
         if hero_img:
             self.hero_image_label.configure(image=hero_img, text="")
         else:
@@ -1089,16 +1128,27 @@ class MovieApp(CTk):
             CTkLabel(self.cards_grid, text="No movies found for this filter.", text_color="lightgray").pack(anchor="w")
         else:
             for movie in card_movies:
-                card = CTkFrame(self.cards_grid, fg_color="#2b2b2b", corner_radius=12, width=248, height=228, border_width=1, border_color="#3d3d3d")
+                card = CTkFrame(
+                    self.cards_grid,
+                    fg_color="#2f2f2f",
+                    corner_radius=14,
+                    width=245,
+                    height=250,
+                    border_width=1,
+                    border_color="#454545"
+                )
                 card.pack(side="left", fill="y", padx=(0, 12), pady=(0, 10))
                 card.pack_propagate(False)
 
                 poster_path = self._resolve_image_path(movie)
-                poster_img = self._make_image_cover_rounded(poster_path, (232, 122), radius=10)
+                poster_img = self._make_image_cover_rounded(poster_path, (225, 126), radius=12)
                 if poster_img:
-                    CTkLabel(card, image=poster_img, text="").pack(pady=(8, 6), padx=8)
+                    poster_label = CTkLabel(card, image=poster_img, text="")
                 else:
-                    CTkLabel(card, text="No image", width=232, height=122, fg_color="#444444", corner_radius=8).pack(pady=(8, 6), padx=8)
+                    poster_label = CTkLabel(card, text="No image", width=225, height=126, fg_color="#444444", corner_radius=10)
+                poster_label.pack(pady=(8, 6), padx=8)
+                poster_label.bind("<Button-1>", lambda _e, m=movie: self.open_movie_details(m))
+                poster_label.configure(cursor="hand2")
 
                 CTkLabel(card, text=str(movie.get("title", "Unknown")), font=("Arial", 16, "bold"), anchor="w").pack(fill="x", padx=10)
                 info_row = CTkFrame(card, fg_color="transparent")
@@ -1106,16 +1156,19 @@ class MovieApp(CTk):
                 CTkLabel(info_row, text=str(movie.get("genre", "")), text_color="#bdbdbd", anchor="w", font=("Arial", 12)).pack(side="left")
                 rating = self._movie_rating_value(movie)
                 CTkLabel(info_row, text=f"{rating} ★" if rating else "☆", text_color="#b8e84b", anchor="e", font=("Arial", 12, "bold")).pack(side="right")
+                action_row = CTkFrame(card, fg_color="transparent", height=54)
+                action_row.pack(side="bottom", fill="x", padx=10, pady=(8, 10))
+                action_row.pack_propagate(False)
                 CTkButton(
-                    card,
+                    action_row,
                     text="Details",
-                    height=self.std_btn_height,
+                    height=40,
                     fg_color="#b8e84b",
                     text_color="black",
                     hover_color="#c8f15f",
-                    font=self.std_btn_font,
+                    font=("Arial", 13, "bold"),
                     command=lambda m=movie: self.open_movie_details(m)
-                ).pack(fill="x", padx=10, pady=(2, 10))
+                ).pack(fill="both", expand=True)
 
         # Recently added
         for widget in self.recent_frame.winfo_children():
@@ -1134,7 +1187,7 @@ class MovieApp(CTk):
             row_inner = CTkFrame(row, fg_color="transparent")
             row_inner.pack(fill="x", padx=6, pady=6)
             thumb_path = self._resolve_image_path(movie)
-            thumb_img = self._make_image(thumb_path, (86, 48))
+            thumb_img = self._make_image_cover_rounded(thumb_path, (86, 48), radius=7)
             if thumb_img:
                 CTkLabel(row_inner, image=thumb_img, text="").pack(side="left", padx=(0, 8))
             meta = CTkFrame(row_inner, fg_color="transparent")

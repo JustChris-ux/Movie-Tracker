@@ -1,6 +1,6 @@
 import json
 from customtkinter import *
-from tkinter import filedialog
+from tkinter import filedialog, Canvas
 import os
 import shutil
 from PIL import Image
@@ -29,6 +29,8 @@ class MovieApp(CTk):
         
         # App color base
         self.configure(fg_color="#191919")
+        self.std_btn_height = 34
+        self.std_btn_font = ("Arial", 12, "bold")
 
         # Create main container
         self.main_container = CTkFrame(self, fg_color="#1f1f1f", corner_radius=16)
@@ -109,7 +111,7 @@ class MovieApp(CTk):
 
         header = CTkFrame(content, fg_color="transparent")
         header.pack(fill="x", pady=(4, 14))
-        CTkLabel(header, text="Add new movie", font=("Arial", 30, "bold")).pack(anchor="n")
+        CTkLabel(header, text="Add new movie", font=("Arial", 22, "bold")).pack(anchor="n")
         CTkLabel(header, text="Track your personal movie collection", font=("Arial", 13), text_color="#b8b8b8").pack(anchor="n", pady=(2, 0))
 
         body = CTkFrame(content, fg_color="transparent")
@@ -117,29 +119,39 @@ class MovieApp(CTk):
 
         left_card = CTkFrame(body, fg_color="#2b2b2b", corner_radius=12)
         left_card.pack(side="left", fill="both", expand=True, padx=(0, 14))
+        self.add_left_card = left_card
+        self.add_left_card.bind("<Configure>", self._on_add_left_card_configure)
 
         right_card = CTkFrame(body, fg_color="#2b2b2b", corner_radius=12, width=430)
         right_card.pack(side="left", fill="y")
         right_card.pack_propagate(False)
 
-        CTkLabel(left_card, text="About movie", font=("Arial", 30, "bold"), anchor="w").pack(fill="x", padx=24, pady=(18, 12))
+        CTkLabel(left_card, text="About movie", font=("Arial", 22, "bold"), anchor="w").pack(fill="x", padx=24, pady=(18, 12))
 
         upload_box = CTkFrame(left_card, fg_color="#545454", corner_radius=10)
         upload_box.pack(fill="x", padx=24, pady=(0, 14))
-        self.upload_btn = CTkButton(
+        self.upload_box = upload_box
+
+        self.upload_canvas = Canvas(
             upload_box,
-            text="+\nUpload poster",
-            command=self.choose_image,
-            width=420,
-            height=120,
-            fg_color="#545454",
-            hover_color="#636363",
-            text_color="#b8e84b",
-            border_width=2,
-            border_color="#b8e84b",
-            font=("Arial", 18, "bold")
+            height=126,
+            bg="#545454",
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2"
         )
-        self.upload_btn.pack(fill="x", padx=6, pady=6)
+        self.upload_canvas.pack(fill="x", padx=6, pady=6)
+        self.upload_border_base_color = "#b8e84b"
+        self.upload_border_hover_color = "#d7ff6a"
+        self.upload_border_color = self.upload_border_base_color
+        self.upload_bg_base_color = "#545454"
+        self.upload_bg_hover_color = "#626262"
+        self.upload_bg_color = self.upload_bg_base_color
+        self.upload_hover_job = None
+        self.upload_canvas.bind("<Button-1>", lambda _e: self.choose_image())
+        self.upload_canvas.bind("<Configure>", self._draw_upload_placeholder)
+        self.upload_canvas.bind("<Enter>", lambda _e: self._animate_upload_hover(self.upload_border_hover_color, self.upload_bg_hover_color))
+        self.upload_canvas.bind("<Leave>", lambda _e: self._animate_upload_hover(self.upload_border_base_color, self.upload_bg_base_color))
 
         self.image_label = CTkLabel(left_card, text="No image selected", font=("Arial", 12), text_color="#b8b8b8", anchor="w")
         self.image_label.pack(fill="x", padx=24, pady=(0, 8))
@@ -190,21 +202,21 @@ class MovieApp(CTk):
             buttons_row,
             text="Save",
             command=self.add_movie,
-            height=44,
+            height=self.std_btn_height,
             fg_color="#b8e84b",
             text_color="black",
             hover_color="#c8f15f",
-            font=("Arial", 20, "bold")
+            font=self.std_btn_font
         ).pack(side="left", fill="x", expand=True, padx=(0, 10))
         CTkButton(
             buttons_row,
             text="Clear fields",
             command=self.clear_fields,
-            height=44,
+            height=self.std_btn_height,
             fg_color="#f0f0f0",
             text_color="black",
             hover_color="#ffffff",
-            font=("Arial", 20, "bold")
+            font=self.std_btn_font
         ).pack(side="left", fill="x", expand=True)
 
         self.status_label = CTkLabel(right_card, text="", font=("Arial", 13))
@@ -244,7 +256,17 @@ class MovieApp(CTk):
         self.search_bar = CTkEntry(search_wrap, width=260, height=34, placeholder_text="Search", fg_color="#2f2f2f", border_width=0)
         self.search_bar.pack(side="left", padx=(10, 4))
         self.search_bar.bind("<KeyRelease>", self.apply_filter)
-        CTkButton(search_wrap, text="Q", width=28, height=26, fg_color="#c5ef4d", text_color="black", hover_color="#d3f767", command=self.apply_filter).pack(side="left", padx=(0, 8))
+        CTkButton(
+            search_wrap,
+            text="Q",
+            width=32,
+            height=self.std_btn_height,
+            fg_color="#c5ef4d",
+            text_color="black",
+            hover_color="#d3f767",
+            font=self.std_btn_font,
+            command=self.apply_filter
+        ).pack(side="left", padx=(0, 8))
 
         self.home_filter_field = "Name"
         self.filter_buttons = {}
@@ -255,12 +277,12 @@ class MovieApp(CTk):
                 filter_wrap,
                 text=option,
                 width=86,
-                height=34,
+                height=self.std_btn_height,
                 corner_radius=8,
                 fg_color="#2f2f2f",
                 text_color="white",
                 hover_color="#3f3f3f",
-                font=("Arial", 13, "bold"),
+                font=self.std_btn_font,
                 command=lambda value=option: self._set_home_filter(value)
             )
             btn.pack(side="left", padx=(0, 6))
@@ -289,8 +311,8 @@ class MovieApp(CTk):
         CTkButton(
             right_column,
             text="+ Add new",
-            height=34,
-            font=("Arial", 16, "bold"),
+            height=self.std_btn_height,
+            font=self.std_btn_font,
             fg_color="#c5ef4d",
             text_color="black",
             hover_color="#d3f767",
@@ -349,7 +371,7 @@ class MovieApp(CTk):
         content.pack(expand=True, fill="both")
         content.pack_propagate(False)
 
-        CTkLabel(content, text="My movie list", font=("Arial", 40, "bold")).pack(anchor="n", pady=(2, 12))
+        CTkLabel(content, text="My movie list", font=("Arial", 22, "bold")).pack(anchor="n", pady=(2, 12))
 
         self.movies_sort_segment = CTkSegmentedButton(
             content,
@@ -440,11 +462,11 @@ class MovieApp(CTk):
             CTkButton(
                 card,
                 text="Details",
-                height=30,
+                height=self.std_btn_height,
                 fg_color="#b8e84b",
                 text_color="black",
                 hover_color="#c8f15f",
-                font=("Arial", 12, "bold"),
+                font=self.std_btn_font,
                 command=lambda m=movie: self.open_movie_details(m)
             ).pack(fill="x", padx=8, pady=(0, 8))
 
@@ -470,7 +492,7 @@ class MovieApp(CTk):
         content.pack(expand=True, fill="both")
         content.pack_propagate(False)
 
-        CTkLabel(content, text="Details", font=("Arial", 40, "bold")).pack(anchor="n", pady=(2, 10))
+        CTkLabel(content, text="Details", font=("Arial", 22, "bold")).pack(anchor="n", pady=(2, 10))
 
         body = CTkFrame(content, fg_color="transparent")
         body.pack(fill="both", expand=True)
@@ -491,9 +513,9 @@ class MovieApp(CTk):
         self.details_poster_label = CTkLabel(self.details_poster_box, text="")
         self.details_poster_label.pack(fill="both", expand=True, padx=2, pady=2)
 
-        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 46, "bold"))
+        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 22, "bold"))
         self.details_title_label.pack(fill="x", pady=(0, 2))
-        CTkLabel(left_col, text="My comment", anchor="w", text_color="#b8e84b", font=("Arial", 34, "bold")).pack(fill="x", pady=(0, 4))
+        CTkLabel(left_col, text="My comment", anchor="w", text_color="#b8e84b", font=("Arial", 22, "bold")).pack(fill="x", pady=(0, 4))
         self.details_comment_label = CTkLabel(
             left_col,
             text="Open a movie details card to preview full information.",
@@ -505,7 +527,7 @@ class MovieApp(CTk):
         )
         self.details_comment_label.pack(fill="both", expand=True)
 
-        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 36, "bold")).pack(fill="x", pady=(10, 2))
+        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 22, "bold")).pack(fill="x", pady=(10, 2))
         self.details_rating_label = CTkLabel(right_col, text="☆☆☆☆☆", anchor="w", text_color="#b8e84b", font=("Arial", 48, "bold"))
         self.details_rating_label.pack(fill="x", pady=(0, 10))
 
@@ -516,7 +538,7 @@ class MovieApp(CTk):
         self.details_genre_label = CTkLabel(right_col, text="Genre: -", justify="left", wraplength=410, anchor="w", font=("Arial", 16, "bold"))
         self.details_genre_label.pack(fill="x", pady=(0, 14))
 
-        CTkLabel(right_col, text="Currently watching", anchor="w", font=("Arial", 24, "bold")).pack(fill="x", pady=(8, 8))
+        CTkLabel(right_col, text="Currently watching", anchor="w", font=("Arial", 22, "bold")).pack(fill="x", pady=(8, 8))
         self.details_watch_frame = CTkFrame(right_col, fg_color="#2f2f2f", corner_radius=10)
         self.details_watch_frame.pack(fill="x")
 
@@ -597,10 +619,11 @@ class MovieApp(CTk):
                 meta,
                 text="Open",
                 width=70,
-                height=24,
+                height=self.std_btn_height,
                 fg_color="#b8e84b",
                 text_color="black",
                 hover_color="#c8f15f",
+                font=self.std_btn_font,
                 command=lambda m=watch_movie: self.open_movie_details(m)
             ).pack(anchor="e", pady=(4, 0))
 
@@ -781,11 +804,11 @@ class MovieApp(CTk):
                 CTkButton(
                     card,
                     text="Details",
-                    height=32,
+                    height=self.std_btn_height,
                     fg_color="#b8e84b",
                     text_color="black",
                     hover_color="#c8f15f",
-                    font=("Arial", 12, "bold"),
+                    font=self.std_btn_font,
                     command=lambda m=movie: self.open_movie_details(m)
                 ).pack(fill="x", padx=10, pady=(2, 10))
 
@@ -826,11 +849,11 @@ class MovieApp(CTk):
                 friend_row,
                 text="See movie list",
                 width=120,
-                height=28,
+                height=self.std_btn_height,
                 fg_color="#c5ef4d",
                 text_color="black",
                 hover_color="#d3f767",
-                font=("Arial", 12, "bold")
+                font=self.std_btn_font
             ).pack(side="right", padx=10, pady=8)
     
     
@@ -924,6 +947,96 @@ class MovieApp(CTk):
             self.selected_image_path = file_path
             filename = os.path.basename(file_path)
             self.image_label.configure(text=filename, text_color="white")
+
+    def _on_add_left_card_configure(self, event=None):
+        """Scale upload area height with available space on Add page."""
+        if not hasattr(self, "upload_canvas") or not hasattr(self, "add_left_card"):
+            return
+        card_h = self.add_left_card.winfo_height()
+        if card_h <= 0:
+            return
+        target_h = max(126, min(190, int(card_h * 0.24)))
+        if int(self.upload_canvas.cget("height")) != target_h:
+            self.upload_canvas.configure(height=target_h)
+            self._draw_upload_placeholder()
+
+    def _draw_upload_placeholder(self, event=None):
+        """Draw rounded dashed border + centered upload text."""
+        if not hasattr(self, "upload_canvas"):
+            return
+        canvas = self.upload_canvas
+        canvas.configure(bg=self.upload_bg_color if hasattr(self, "upload_bg_color") else "#545454")
+        canvas.delete("all")
+        w = canvas.winfo_width()
+        h = canvas.winfo_height()
+        if w < 30 or h < 30:
+            return
+
+        pad = 8
+        r = 16
+        x1, y1 = pad, pad
+        x2, y2 = w - pad, h - pad
+        border_color = self.upload_border_color if hasattr(self, "upload_border_color") else "#b8e84b"
+        border_width = 1
+        dash = (10, 8)
+
+        # Rounded dashed border built from lines + arcs.
+        canvas.create_line(x1 + r, y1, x2 - r, y1, fill=border_color, width=border_width, dash=dash)
+        canvas.create_line(x1 + r, y2, x2 - r, y2, fill=border_color, width=border_width, dash=dash)
+        canvas.create_line(x1, y1 + r, x1, y2 - r, fill=border_color, width=border_width, dash=dash)
+        canvas.create_line(x2, y1 + r, x2, y2 - r, fill=border_color, width=border_width, dash=dash)
+        canvas.create_arc(x1, y1, x1 + 2 * r, y1 + 2 * r, start=90, extent=90, style="arc", outline=border_color, width=border_width)
+        canvas.create_arc(x2 - 2 * r, y1, x2, y1 + 2 * r, start=0, extent=90, style="arc", outline=border_color, width=border_width)
+        canvas.create_arc(x1, y2 - 2 * r, x1 + 2 * r, y2, start=180, extent=90, style="arc", outline=border_color, width=border_width)
+        canvas.create_arc(x2 - 2 * r, y2 - 2 * r, x2, y2, start=270, extent=90, style="arc", outline=border_color, width=border_width)
+        canvas.create_text(
+            w / 2,
+            h / 2 - 10,
+            text="+",
+            fill="#b8e84b",
+            font=("Arial", 22, "bold")
+        )
+        canvas.create_text(
+            w / 2,
+            h / 2 + 14,
+            text="Upload poster",
+            fill="#b8e84b",
+            font=("Arial", 13, "bold")
+        )
+
+    def _hex_to_rgb(self, hex_color):
+        hex_color = hex_color.lstrip("#")
+        return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+    def _rgb_to_hex(self, rgb_color):
+        return "#{:02x}{:02x}{:02x}".format(*rgb_color)
+
+    def _animate_upload_hover(self, target_border_color, target_bg_color):
+        if not hasattr(self, "upload_canvas"):
+            return
+        if self.upload_hover_job:
+            self.after_cancel(self.upload_hover_job)
+            self.upload_hover_job = None
+
+        start_border = self._hex_to_rgb(self.upload_border_color)
+        end_border = self._hex_to_rgb(target_border_color)
+        start_bg = self._hex_to_rgb(self.upload_bg_color)
+        end_bg = self._hex_to_rgb(target_bg_color)
+        steps = 7
+
+        def step(idx=1):
+            ratio = idx / steps
+            current_border = tuple(int(start_border[i] + (end_border[i] - start_border[i]) * ratio) for i in range(3))
+            current_bg = tuple(int(start_bg[i] + (end_bg[i] - start_bg[i]) * ratio) for i in range(3))
+            self.upload_border_color = self._rgb_to_hex(current_border)
+            self.upload_bg_color = self._rgb_to_hex(current_bg)
+            self._draw_upload_placeholder()
+            if idx < steps:
+                self.upload_hover_job = self.after(20, lambda: step(idx + 1))
+            else:
+                self.upload_hover_job = None
+
+        step()
 
     def _clear_comment_placeholder(self, event):
         if self.comment_text.get("1.0", "end").strip() == "Type here...":

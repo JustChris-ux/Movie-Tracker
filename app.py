@@ -3,6 +3,7 @@ from customtkinter import *
 from tkinter import filedialog, Canvas
 import os
 import shutil
+from datetime import datetime
 from PIL import Image
 
 set_appearance_mode("dark")
@@ -864,10 +865,10 @@ class MovieApp(CTk):
         genre = self.genre_entry.get().strip()
         actors = self.actors_entry.get().strip()
         year = self.year_entry.get().strip()
-        
-        # Validate inputs
-        if not name:
-            self.status_label.configure(text="Please enter a movie name!", text_color="red")
+
+        error_message = self._validate_add_movie_input(name, genre, actors, year, self.selected_image_path)
+        if error_message:
+            self.status_label.configure(text=error_message, text_color="#ff6b6b")
             return
 
         # Handle image
@@ -916,6 +917,43 @@ class MovieApp(CTk):
         # Refresh the movie list tab
         self.refresh_movie_list()
         self.refresh_movies_page()
+
+    def _validate_add_movie_input(self, name, genre, actors, year, selected_image_path):
+        """Validate user input for Add Movie form."""
+        current_year = datetime.now().year
+
+        if not name:
+            return "Movie title is required."
+        if len(name) < 2:
+            return "Movie title must be at least 2 characters."
+
+        if not year:
+            return "Year is required."
+        if not year.isdigit():
+            return "Year must contain only numbers."
+        year_value = int(year)
+        if year_value < 1888 or year_value > current_year + 2:
+            return f"Year must be between 1888 and {current_year + 2}."
+
+        if not genre:
+            return "Genre is required."
+        if len(genre) < 2:
+            return "Genre must be at least 2 characters."
+
+        if not actors:
+            return "Actors field is required."
+        if len(actors) < 2:
+            return "Actors must be at least 2 characters."
+
+        if not selected_image_path:
+            return "Movie poster image is required."
+
+        if hasattr(self, "rating_var"):
+            rating_value = str(self.rating_var.get()).strip()
+            if rating_value not in {"1", "2", "3", "4", "5"}:
+                return "Rating must be between 1 and 5."
+
+        return None
     
     def clear_fields(self):
         """Clear all input fields"""

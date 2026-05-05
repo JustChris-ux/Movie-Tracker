@@ -25,6 +25,7 @@ class MovieApp(CTk):
 
         # Image state for current movie
         self.selected_image_path = None
+        self.edit_movie_index = None
 
         self.load_data()
         
@@ -35,6 +36,8 @@ class MovieApp(CTk):
         self._ctk_image_cache = {}
         self._movies_page_last_signature = None
         self._movies_page_last_width = 0
+        self._details_resize_job = None
+        self._details_last_render_key = None
 
         # Create main container
         self.main_container = CTkFrame(self, fg_color="#1f1f1f", corner_radius=16)
@@ -202,7 +205,7 @@ class MovieApp(CTk):
 
         buttons_row = CTkFrame(right_card, fg_color="transparent")
         buttons_row.pack(fill="x", padx=24, pady=(16, 8))
-        CTkButton(
+        self.save_movie_btn = CTkButton(
             buttons_row,
             text="Save",
             command=self.add_movie,
@@ -211,7 +214,8 @@ class MovieApp(CTk):
             text_color="black",
             hover_color="#c8f15f",
             font=self.std_btn_font
-        ).pack(side="left", fill="x", expand=True, padx=(0, 10))
+        )
+        self.save_movie_btn.pack(side="left", fill="x", expand=True, padx=(0, 10))
         CTkButton(
             buttons_row,
             text="Clear fields",
@@ -596,59 +600,89 @@ class MovieApp(CTk):
         content_outer = CTkFrame(shell, fg_color="transparent")
         content_outer.pack(side="left", fill="both", expand=True)
 
-        content = CTkFrame(content_outer, fg_color="transparent", width=1030)
+        content = CTkFrame(content_outer, fg_color="transparent")
         content.pack(expand=True, fill="both")
-        content.pack_propagate(False)
 
         CTkLabel(content, text="Details", font=("Arial", 22, "bold")).pack(anchor="n", pady=(2, 10))
 
         body = CTkFrame(content, fg_color="transparent")
         body.pack(fill="both", expand=True)
-        body.grid_columnconfigure(0, weight=1, uniform="details")
-        body.grid_columnconfigure(1, weight=0, uniform="details")
+        body.grid_columnconfigure(0, weight=65)
+        body.grid_columnconfigure(1, weight=0, minsize=28)
+        body.grid_columnconfigure(2, weight=35)
         body.grid_rowconfigure(0, weight=1)
+        self.details_body = body
+        self.details_body.bind("<Configure>", self._on_details_body_configure)
 
         left_col = CTkFrame(body, fg_color="transparent")
-        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
+        left_col.grid(row=0, column=0, sticky="nsew")
+        self.details_left_col = left_col
+        self.details_left_col.bind("<Configure>", self._on_details_left_col_configure)
+        left_col.grid_propagate(False)
 
-        right_col = CTkFrame(body, fg_color="transparent", width=440)
-        right_col.grid(row=0, column=1, sticky="ns")
+        right_col = CTkFrame(body, fg_color="transparent")
+        right_col.grid(row=0, column=2, sticky="nsew")
         right_col.grid_propagate(False)
 
         self.details_poster_box = CTkFrame(left_col, fg_color="#2f2f2f", corner_radius=12, height=330)
         self.details_poster_box.pack(fill="x", pady=(0, 10))
         self.details_poster_box.pack_propagate(False)
         self.details_poster_label = CTkLabel(self.details_poster_box, text="")
-        self.details_poster_label.pack(fill="both", expand=True, padx=2, pady=2)
+        self.details_poster_label.pack(fill="both", expand=True, padx=6, pady=6)
+        self.details_poster_box.bind("<Configure>", lambda _e: self.refresh_movie_details())
 
-        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 22, "bold"))
+        self.details_title_label = CTkLabel(left_col, text="No movie selected", anchor="w", font=("Arial", 18, "bold"))
         self.details_title_label.pack(fill="x", pady=(0, 2))
-        CTkLabel(left_col, text="My comment", anchor="w", text_color="#b8e84b", font=("Arial", 22, "bold")).pack(fill="x", pady=(0, 4))
-        self.details_comment_label = CTkLabel(
+        CTkLabel(left_col, text="My comment", anchor="w", text_color="#b8e84b", font=("Arial", 16, "bold")).pack(fill="x", pady=(0, 4))
+        self.details_comment_box = CTkTextbox(
             left_col,
-            text="Open a movie details card to preview full information.",
-            justify="left",
-            anchor="nw",
-            wraplength=620,
+            fg_color="#1f1f1f",
+            border_width=0,
             text_color="#d8d8d8",
-            font=("Arial", 14)
+            font=("Arial", 13),
+            wrap="word"
         )
-        self.details_comment_label.pack(fill="both", expand=True)
+        self.details_comment_box.pack(fill="both", expand=True)
+        self.details_comment_box.insert("1.0", "Open a movie details card to preview full information.")
+        self.details_comment_box.configure(state="disabled")
 
-        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 22, "bold")).pack(fill="x", pady=(10, 2))
-        self.details_rating_label = CTkLabel(right_col, text="☆☆☆☆☆", anchor="w", text_color="#b8e84b", font=("Arial", 48, "bold"))
+        CTkLabel(right_col, text="My Rating", anchor="w", text_color="#b8e84b", font=("Arial", 16, "bold")).pack(fill="x", pady=(10, 2))
+        self.details_rating_label = CTkLabel(right_col, text="☆☆☆☆☆", anchor="w", text_color="#b8e84b", font=("Arial", 30, "bold"))
         self.details_rating_label.pack(fill="x", pady=(0, 10))
 
-        self.details_year_label = CTkLabel(right_col, text="Year: -", anchor="w", justify="left", wraplength=410, font=("Arial", 16, "bold"))
+        self.details_year_label = CTkLabel(right_col, text="Year: -", anchor="w", justify="left", wraplength=410, font=("Arial", 14, "bold"))
         self.details_year_label.pack(fill="x", pady=(0, 8))
-        self.details_actors_label = CTkLabel(right_col, text="Actors: -", justify="left", wraplength=410, anchor="w", font=("Arial", 16, "bold"))
+        self.details_actors_label = CTkLabel(right_col, text="Actors: -", justify="left", wraplength=410, anchor="w", font=("Arial", 14, "bold"))
         self.details_actors_label.pack(fill="x", pady=(0, 8))
-        self.details_genre_label = CTkLabel(right_col, text="Genre: -", justify="left", wraplength=410, anchor="w", font=("Arial", 16, "bold"))
+        self.details_genre_label = CTkLabel(right_col, text="Genre: -", justify="left", wraplength=410, anchor="w", font=("Arial", 14, "bold"))
         self.details_genre_label.pack(fill="x", pady=(0, 14))
 
-        CTkLabel(right_col, text="Currently watching", anchor="w", font=("Arial", 22, "bold")).pack(fill="x", pady=(8, 8))
+        CTkLabel(right_col, text="Currently watching", anchor="w", font=("Arial", 16, "bold")).pack(fill="x", pady=(8, 8))
         self.details_watch_frame = CTkFrame(right_col, fg_color="#2f2f2f", corner_radius=10)
         self.details_watch_frame.pack(fill="x")
+
+        details_actions = CTkFrame(right_col, fg_color="transparent")
+        details_actions.pack(fill="x", pady=(12, 0))
+        CTkButton(
+            details_actions,
+            text="Edit",
+            height=self.std_btn_height,
+            fg_color="#b8e84b",
+            text_color="black",
+            hover_color="#c8f15f",
+            font=self.std_btn_font,
+            command=self.edit_current_movie
+        ).pack(side="left", fill="x", expand=True, padx=(0, 8))
+        CTkButton(
+            details_actions,
+            text="Delete",
+            height=self.std_btn_height,
+            fg_color="#c14f4f",
+            text_color="white",
+            hover_color="#d25f5f",
+            font=self.std_btn_font,
+            command=self.delete_current_movie
+        ).pack(side="left", fill="x", expand=True)
 
         self.refresh_movie_details()
 
@@ -669,7 +703,10 @@ class MovieApp(CTk):
         if not movie:
             self.details_poster_label.configure(image=None, text="No image")
             self.details_title_label.configure(text="No movie selected")
-            self.details_comment_label.configure(text="Open a movie details card to preview full information.")
+            self.details_comment_box.configure(state="normal")
+            self.details_comment_box.delete("1.0", END)
+            self.details_comment_box.insert("1.0", "Open a movie details card to preview full information.")
+            self.details_comment_box.configure(state="disabled")
             self.details_rating_label.configure(text="☆☆☆☆☆")
             self.details_year_label.configure(text="Year: -")
             self.details_actors_label.configure(text="Actors: -")
@@ -684,14 +721,32 @@ class MovieApp(CTk):
             stars = "★" * max(0, min(5, rating)) + "☆" * (5 - max(0, min(5, rating)))
 
             poster_path = self._resolve_image_path(movie)
-            poster_img = self._make_image_cover(poster_path, (640, 314))
+            poster_w = max(self.details_poster_box.winfo_width() - 12, 240)
+            poster_h = max(self.details_poster_box.winfo_height() - 12, 140)
+            adaptive_radius = max(12, min(34, int(min(poster_w, poster_h) * 0.09)))
+            render_key = (id(movie), poster_w, poster_h, adaptive_radius)
+            if render_key == self._details_last_render_key:
+                poster_img = None
+            else:
+                self._details_last_render_key = render_key
+                poster_img = self._make_image_cover_rounded(
+                    poster_path,
+                    (poster_w, poster_h),
+                    radius=adaptive_radius
+                )
             if poster_img:
                 self.details_poster_label.configure(image=poster_img, text="")
+            elif self.details_poster_label.cget("image"):
+                # Keep existing image when size didn't change.
+                pass
             else:
                 self.details_poster_label.configure(image=None, text="No image")
 
             self.details_title_label.configure(text=title)
-            self.details_comment_label.configure(text=comment)
+            self.details_comment_box.configure(state="normal")
+            self.details_comment_box.delete("1.0", END)
+            self.details_comment_box.insert("1.0", comment)
+            self.details_comment_box.configure(state="disabled")
             self.details_rating_label.configure(text=stars)
             self.details_year_label.configure(text=f"Year: {year}", text_color="#dcdcdc")
             self.details_actors_label.configure(text=f"Actors: {actors}", text_color="#dcdcdc")
@@ -705,26 +760,28 @@ class MovieApp(CTk):
             movies = [m for m in movies if m is not movie]
         movies = movies[:3]
         for watch_movie in movies:
-            row = CTkFrame(self.details_watch_frame, fg_color="#3a3a3a", corner_radius=8)
+            row = CTkFrame(self.details_watch_frame, fg_color="#3a3a3a", corner_radius=8, height=84)
             row.pack(fill="x", padx=8, pady=6)
+            row.pack_propagate(False)
             row_inner = CTkFrame(row, fg_color="transparent")
             row_inner.pack(fill="x", padx=6, pady=6)
+            row_inner.grid_columnconfigure(0, weight=0)
+            row_inner.grid_columnconfigure(1, weight=1)
+            row_inner.grid_columnconfigure(2, weight=0)
 
             thumb_path = self._resolve_image_path(watch_movie)
-            thumb_img = self._make_image_cover(thumb_path, (120, 68))
+            thumb_img = self._make_image_cover_rounded(thumb_path, (110, 62), radius=8)
             if thumb_img:
-                CTkLabel(row_inner, image=thumb_img, text="").pack(side="left", padx=(0, 8))
+                CTkLabel(row_inner, image=thumb_img, text="").grid(row=0, column=0, rowspan=2, padx=(0, 8), sticky="w")
             else:
-                CTkLabel(row_inner, text="No image", width=120, height=68, fg_color="#4a4a4a", corner_radius=6).pack(side="left", padx=(0, 8))
+                CTkLabel(row_inner, text="No image", width=110, height=62, fg_color="#4a4a4a", corner_radius=8).grid(row=0, column=0, rowspan=2, padx=(0, 8), sticky="w")
 
             title = str(watch_movie.get("title", "Untitled"))
             year = str(watch_movie.get("year", ""))
-            meta = CTkFrame(row_inner, fg_color="transparent")
-            meta.pack(side="left", fill="both", expand=True)
-            CTkLabel(meta, text=f"{title}  •  {year}", anchor="w", font=("Arial", 18, "bold")).pack(fill="x", pady=(1, 0))
-            CTkLabel(meta, text=str(watch_movie.get("genre", "")), anchor="w", text_color="#c9c9c9", font=("Arial", 11)).pack(fill="x")
+            CTkLabel(row_inner, text=f"{title}  •  {year}", anchor="w", font=("Arial", 13, "bold")).grid(row=0, column=1, sticky="w", pady=(2, 0))
+            CTkLabel(row_inner, text=str(watch_movie.get("genre", "")), anchor="w", text_color="#c9c9c9", font=("Arial", 11)).grid(row=1, column=1, sticky="w")
             CTkButton(
-                meta,
+                row_inner,
                 text="Open",
                 width=70,
                 height=self.std_btn_height,
@@ -733,7 +790,44 @@ class MovieApp(CTk):
                 hover_color="#c8f15f",
                 font=self.std_btn_font,
                 command=lambda m=watch_movie: self.open_movie_details(m)
-            ).pack(anchor="e", pady=(4, 0))
+            ).grid(row=0, column=2, rowspan=2, padx=(8, 0), sticky="e")
+
+    def _on_details_left_col_configure(self, event=None):
+        """Keep details page responsive and wrapped comment text."""
+        if not hasattr(self, "details_left_col") or not hasattr(self, "details_poster_box"):
+            return
+
+        col_w = self.details_left_col.winfo_width()
+        col_h = self.details_left_col.winfo_height()
+        if col_w <= 0 or col_h <= 0:
+            return
+
+        # Adaptive poster height for balanced fullscreen layout.
+        target_h = max(280, min(440, int(col_h * 0.45)))
+        if self.details_poster_box.cget("height") != target_h:
+            self.details_poster_box.configure(height=target_h)
+
+        if hasattr(self, "details_comment_box"):
+            self.details_comment_box.configure(width=max(320, col_w - 24))
+
+    def _on_details_body_configure(self, event=None):
+        """Enforce exact 65/35 visual split for details columns."""
+        if not hasattr(self, "details_body"):
+            return
+        body_w = self.details_body.winfo_width()
+        if body_w <= 0:
+            return
+        gap = 28
+        usable_w = max(0, body_w - gap)
+        left_w = int(usable_w * 0.65)
+        right_w = usable_w - left_w
+        self.details_body.grid_columnconfigure(0, minsize=left_w)
+        self.details_body.grid_columnconfigure(2, minsize=right_w)
+
+    def _run_details_resize_refresh(self):
+        self._details_resize_job = None
+        self.refresh_movie_details()
+
 
     def _normalize_actors(self, actors_value):
         if isinstance(actors_value, list):
@@ -840,12 +934,57 @@ class MovieApp(CTk):
 
             img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-            mask = Image.new("L", (target_w, target_h), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.rounded_rectangle((0, 0, target_w, target_h), radius=radius, fill=255)
+            # Build anti-aliased rounded mask (supersampling) to avoid jagged corners.
+            scale = 4
+            mask_large = Image.new("L", (target_w * scale, target_h * scale), 0)
+            draw_large = ImageDraw.Draw(mask_large)
+            draw_large.rounded_rectangle(
+                (0, 0, target_w * scale - 1, target_h * scale - 1),
+                radius=radius * scale,
+                fill=255
+            )
+            mask = mask_large.resize((target_w, target_h), Image.Resampling.LANCZOS)
             img.putalpha(mask)
 
             ctk_img = CTkImage(light_image=img, dark_image=img, size=(target_w, target_h))
+            self._ctk_image_cache[cache_key] = ctk_img
+            self._ui_images.append(ctk_img)
+            return ctk_img
+        except Exception:
+            return None
+
+    def _make_image_contain_rounded(self, image_path, size, radius=10, bg_color=(47, 47, 47, 255)):
+        """Create contain image with rounded corners (shows full image)."""
+        if not image_path:
+            return None
+        try:
+            target_w, target_h = size
+            mtime = os.path.getmtime(image_path)
+            cache_key = ("contain_rounded", image_path, target_w, target_h, radius, bg_color, int(mtime))
+            cached = self._ctk_image_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+            source = Image.open(image_path).convert("RGBA")
+            source.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+
+            canvas = Image.new("RGBA", (target_w, target_h), bg_color)
+            offset_x = (target_w - source.width) // 2
+            offset_y = (target_h - source.height) // 2
+            canvas.paste(source, (offset_x, offset_y), source)
+
+            scale = 4
+            mask_large = Image.new("L", (target_w * scale, target_h * scale), 0)
+            draw_large = ImageDraw.Draw(mask_large)
+            draw_large.rounded_rectangle(
+                (0, 0, target_w * scale - 1, target_h * scale - 1),
+                radius=radius * scale,
+                fill=255
+            )
+            mask = mask_large.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            canvas.putalpha(mask)
+
+            ctk_img = CTkImage(light_image=canvas, dark_image=canvas, size=(target_w, target_h))
             self._ctk_image_cache[cache_key] = ctk_img
             self._ui_images.append(ctk_img)
             return ctk_img
@@ -1059,22 +1198,34 @@ class MovieApp(CTk):
             if comment_text == "Type here...":
                 comment_text = ""
 
+        existing_image = ""
+        if self.edit_movie_index is not None and 0 <= self.edit_movie_index < len(self.data.get("movies", [])):
+            existing_image = str(self.data["movies"][self.edit_movie_index].get("image", ""))
+
         movie = {
             "title": name,
             "genre": genre,
             "actors": actors,
             "year": year,
-            "image": image_path_value,
+            "image": image_path_value if image_path_value else existing_image,
             "comment": comment_text,
             "rating": self.rating_var.get() if hasattr(self, "rating_var") else "1"
         }
         
-        # Add to data and save
-        self.data["movies"].append(movie)
+        # Add/update data and save
+        if self.edit_movie_index is not None and 0 <= self.edit_movie_index < len(self.data.get("movies", [])):
+            self.data["movies"][self.edit_movie_index] = movie
+            action_text = "updated"
+        else:
+            self.data["movies"].append(movie)
+            action_text = "added"
         self.save_data()
         
         # Show success message
-        self.status_label.configure(text=f"✓ '{name}' added successfully!", text_color="green")
+        self.status_label.configure(text=f"✓ '{name}' {action_text} successfully!", text_color="green")
+        self.edit_movie_index = None
+        if hasattr(self, "save_movie_btn"):
+            self.save_movie_btn.configure(text="Save")
         
         # Clear fields
         self.clear_fields()
@@ -1135,6 +1286,9 @@ class MovieApp(CTk):
         if hasattr(self, "rating_var"):
             self.rating_var.set("1")
             self._update_rating_stars("1")
+        self.edit_movie_index = None
+        if hasattr(self, "save_movie_btn"):
+            self.save_movie_btn.configure(text="Save")
 
     def choose_image(self):
         """Open file dialog to choose an image for the movie"""
@@ -1252,6 +1406,69 @@ class MovieApp(CTk):
             value = 1
         stars = "★" * value + "☆" * (5 - value)
         self.rating_stars.configure(text=stars)
+
+    def _find_movie_index(self, movie):
+        for idx, item in enumerate(self.data.get("movies", [])):
+            if item is movie or item == movie:
+                return idx
+        return None
+
+    def edit_current_movie(self):
+        """Load current details movie into Add Movie form for editing."""
+        movie = self.current_detail_movie
+        if not movie:
+            self.status_label.configure(text="No movie selected to edit.", text_color="#ff6b6b")
+            return
+        movie_index = self._find_movie_index(movie)
+        if movie_index is None:
+            self.status_label.configure(text="Selected movie not found.", text_color="#ff6b6b")
+            return
+
+        self.clear_fields()
+        self.edit_movie_index = movie_index
+        self.name_entry.insert(0, str(movie.get("title", "")))
+        self.genre_entry.insert(0, str(movie.get("genre", "")))
+        self.actors_entry.insert(0, self._normalize_actors(movie.get("actors", "")))
+        self.year_entry.insert(0, str(movie.get("year", "")))
+
+        comment = str(movie.get("comment", "")).strip()
+        if comment:
+            self.comment_text.delete("1.0", END)
+            self.comment_text.insert("1.0", comment)
+
+        rating = str(movie.get("rating", "1"))
+        if hasattr(self, "rating_var"):
+            self.rating_var.set(rating if rating in {"1", "2", "3", "4", "5"} else "1")
+            self._update_rating_stars(self.rating_var.get())
+
+        image_path = self._resolve_image_path(movie)
+        self.selected_image_path = image_path
+        if image_path:
+            self.image_label.configure(text=os.path.basename(image_path), text_color="white")
+
+        if hasattr(self, "save_movie_btn"):
+            self.save_movie_btn.configure(text="Update")
+        self.status_label.configure(text="Editing selected movie...", text_color="#b8e84b")
+        self.tab_view.set("Add Movie")
+
+    def delete_current_movie(self):
+        """Delete current movie from collection."""
+        movie = self.current_detail_movie
+        if not movie:
+            return
+        movie_index = self._find_movie_index(movie)
+        if movie_index is None:
+            return
+
+        title = str(self.data["movies"][movie_index].get("title", "Movie"))
+        del self.data["movies"][movie_index]
+        self.save_data()
+        self.current_detail_movie = None
+        self.refresh_movie_details()
+        self.refresh_movie_list()
+        self.refresh_movies_page()
+        self.status_label.configure(text=f"✓ '{title}' deleted successfully!", text_color="#b8e84b")
+        self.tab_view.set("Movies Page")
 
 if __name__ == "__main__":
     app = MovieApp()

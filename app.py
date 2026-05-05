@@ -394,11 +394,11 @@ class MovieApp(CTk):
         self._set_home_filter("Name", refresh=False)
 
         # Hero and cards
-        self.hero_frame = CTkFrame(left_column, fg_color="#2f2f2f", corner_radius=12, height=340)
+        self.hero_frame = CTkFrame(left_column, fg_color="transparent", corner_radius=0, height=340)
         self.hero_frame.pack(fill="x", pady=(0, 16))
         self.hero_frame.pack_propagate(False)
         self.hero_image_label = CTkLabel(self.hero_frame, text="")
-        self.hero_image_label.pack(fill="both", expand=True, padx=2, pady=2)
+        self.hero_image_label.pack(fill="both", expand=True)
         self.hero_frame.bind("<Configure>", self._on_hero_frame_configure)
 
         CTkLabel(left_column, text="Popular movies", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(0, 8))
@@ -1193,7 +1193,11 @@ class MovieApp(CTk):
         column_h = self.home_left_column.winfo_height()
         if column_h <= 0:
             return
-        target_h = max(320, min(460, int(column_h * 0.46)))
+        column_w = self.home_left_column.winfo_width()
+        # More adaptive hero height on large/fullscreen windows.
+        height_by_screen = int(column_h * 0.56)
+        height_by_width = int(column_w * 0.44) if column_w > 0 else 0
+        target_h = max(320, min(620, max(height_by_screen, height_by_width)))
         if self.hero_frame.cget("height") != target_h:
             self.hero_frame.configure(height=target_h)
 
@@ -1295,8 +1299,8 @@ class MovieApp(CTk):
                 CTkLabel(self.cards_grid, text="No movies found for this filter.", text_color="lightgray").pack(anchor="w")
             else:
                 poster_w = max(170, card_w - 20)
-                poster_h = max(108, int(poster_w * 0.56))
-                card_h = max(236, poster_h + 118)
+                poster_h = max(126, int(poster_w * 0.58))
+                card_h = max(252, poster_h + 126)
 
                 for idx, movie in enumerate(card_movies):
                     card = CTkFrame(

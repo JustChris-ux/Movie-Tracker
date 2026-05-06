@@ -1302,15 +1302,16 @@ class MovieApp(CTk):
         """Refresh all dashboard areas"""
         filtered_movies = self._get_filtered_movies()
         self._ui_images = []
-        poster_movies = self._movies_with_posters(filtered_movies)
-        all_poster_movies = self._movies_with_posters(self.data.get("movies", []))
+        all_movies = self.data.get("movies", [])
+        latest_filtered_movies = list(reversed(filtered_movies))
+        latest_all_movies = list(reversed(all_movies))
 
         # Hero image
-        self.current_hero_movie = poster_movies[0] if poster_movies else (all_poster_movies[0] if all_poster_movies else None)
+        self.current_hero_movie = latest_filtered_movies[0] if latest_filtered_movies else (latest_all_movies[0] if latest_all_movies else None)
         self.after_idle(self._render_hero_image)
 
         # Cards
-        card_pool = poster_movies if poster_movies else all_poster_movies
+        card_pool = latest_filtered_movies if latest_filtered_movies else latest_all_movies
         card_movies = []
         cards_area_w = 0
         target_cards = 3
@@ -1398,8 +1399,8 @@ class MovieApp(CTk):
         # Recently added
         for widget in self.recent_frame.winfo_children():
             widget.destroy()
-        watching_source = all_poster_movies if all_poster_movies else self.data.get("movies", [])
-        watching_movies = watching_source[-3:][::-1]
+        watching_source = latest_all_movies
+        watching_movies = watching_source[:3]
         if watching_movies:
             while len(watching_movies) < 3:
                 watching_movies.append(watching_movies[-1])

@@ -92,10 +92,14 @@ class MovieApp(CTk):
     
     def load_data(self):
         """Load movie data from JSON file"""
-        self.data = {"movies": []}
+        self.data = {"movies": [], "journal_note": ""}
         if os.path.exists(self.data_file):
             with open(self.data_file, "r") as file:
                 self.data = json.load(file)
+        if not isinstance(self.data, dict):
+            self.data = {"movies": [], "journal_note": ""}
+        self.data.setdefault("movies", [])
+        self.data.setdefault("journal_note", "")
     
     def save_data(self):
         """Save movie data to JSON file"""
@@ -346,6 +350,7 @@ class MovieApp(CTk):
 
         right_column = CTkFrame(content, fg_color="transparent")
         right_column.grid(row=0, column=2, sticky="nsew")
+        self.home_right_column = right_column
 
         # Top bar
         top_bar = CTkFrame(left_column, fg_color="transparent")
@@ -425,12 +430,13 @@ class MovieApp(CTk):
 
         CTkLabel(right_column, text="Currently watching", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(4, 8))
         self.recent_frame = CTkFrame(right_column, fg_color="#2f2f2f", corner_radius=10)
-        self.recent_frame.pack(fill="x", pady=(0, 14))
+        self.recent_frame.pack(fill="both", expand=True, pady=(0, 16))
 
-        CTkLabel(right_column, text="Top 5 Rated Worldwide", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(2, 8))
-        self.moodboard_frame = CTkFrame(right_column, fg_color="#2f2f2f", corner_radius=10)
-        self.moodboard_frame.pack(fill="x")
-        self._render_world_top5_showcase()
+        CTkLabel(right_column, text="Movie Journal", font=("Arial", 16, "bold"), anchor="w").pack(fill="x", pady=(2, 8))
+        self.journal_frame = CTkFrame(right_column, fg_color="#2f2f2f", corner_radius=10)
+        self.journal_frame.pack(fill="both", expand=True)
+        self.journal_frame.bind("<Configure>", lambda _e: self._resize_home_journal())
+        self._render_movie_journal()
 
         self.refresh_movie_list()
         self.after(120, self.refresh_movie_list)
@@ -453,55 +459,94 @@ class MovieApp(CTk):
         if refresh:
             self.refresh_movie_list()
 
-    def _render_world_top5_showcase(self):
-        if not hasattr(self, "moodboard_frame") or not self.world_top5_paths:
+    def _render_movie_journal(self):
+        if not hasattr(self, "journal_frame"):
             return
-        for widget in self.moodboard_frame.winfo_children():
+
+        for widget in self.journal_frame.winfo_children():
             widget.destroy()
 
-        featured_img = self._make_image_contain_rounded(
-            self.world_top5_paths[0],
-            (300, 236),
-            radius=12,
-            bg_color=(47, 47, 47, 255)
-        )
-        if featured_img:
-            CTkLabel(self.moodboard_frame, text="", image=featured_img).pack(fill="x", padx=8, pady=(10, 8))
+        container = CTkFrame(self.journal_frame, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=10, pady=10)
 
-        grid = CTkFrame(self.moodboard_frame, fg_color="transparent")
-        grid.pack(fill="x", padx=8, pady=(0, 10))
-        grid.grid_columnconfigure(0, weight=1)
-        grid.grid_columnconfigure(1, weight=1)
-        small_paths = self.world_top5_paths[1:5]
-        for idx, image_path in enumerate(small_paths):
-            thumb_img = self._make_image_contain_rounded(
-                image_path,
-                (144, 96),
-                radius=10,
-                bg_color=(47, 47, 47, 255)
-            )
-            if thumb_img:
-                CTkLabel(grid, text="", image=thumb_img).grid(
-                    row=idx // 2,
-                    column=idx % 2,
-                    padx=(0 if idx % 2 == 0 else 4, 4 if idx % 2 == 0 else 0),
-                    pady=(0 if idx < 2 else 4, 4 if idx < 2 else 0),
-                    sticky="nsew"
-                )
-            else:
-                CTkLabel(
-                    grid,
-                    text="N/A",
-                    fg_color="#3b3b3b",
-                    corner_radius=8,
-                    height=96
-                ).grid(
-                    row=idx // 2,
-                    column=idx % 2,
-                    padx=(0 if idx % 2 == 0 else 4, 4 if idx % 2 == 0 else 0),
-                    pady=(0 if idx < 2 else 4, 4 if idx < 2 else 0),
-                    sticky="nsew"
-                )
+        header = CTkFrame(container, fg_color="transparent")
+        header.pack(fill="x", pady=(0, 8))
+        CTkLabel(
+            header,
+            text="Write anything about movies",
+            text_color="#b8e84b",
+            font=("Arial", 12, "bold"),
+            anchor="w"
+        ).pack(side="left")
+
+        note_box = CTkFrame(
+            container,
+            fg_color="#363636",
+            corner_radius=10,
+            border_width=1,
+            border_color="#4d4d4d"
+        )
+        note_box.pack(fill="x", pady=(0, 8))
+        self.home_journal_text = CTkTextbox(
+            note_box,
+            height=140,
+            fg_color="#363636",
+            border_width=0,
+            wrap="word",
+            font=("Arial", 12)
+        )
+        self.home_journal_text.pack(fill="x", padx=8, pady=(8, 6))
+        self.home_journal_text.insert("1.0", str(self.data.get("journal_note", "")))
+        self._resize_home_journal()
+
+        actions = CTkFrame(container, fg_color="transparent")
+        actions.pack(fill="x")
+        self.home_journal_status = CTkLabel(
+            actions,
+            text="",
+            text_color="#8f8f8f",
+            font=("Arial", 11),
+            anchor="w"
+        )
+        self.home_journal_status.pack(side="left", fill="x", expand=True)
+        CTkButton(
+            actions,
+            text="Save",
+            width=88,
+            height=30,
+            corner_radius=8,
+            fg_color="#b8e84b",
+            text_color="black",
+            hover_color="#c8f15f",
+            font=("Arial", 12, "bold"),
+            command=self._save_manual_journal
+        ).pack(side="right")
+
+    def _save_manual_journal(self):
+        if not hasattr(self, "home_journal_text"):
+            return
+        note_text = self.home_journal_text.get("1.0", "end").strip()
+        self.data["journal_note"] = note_text
+        self.save_data()
+        if hasattr(self, "home_journal_status"):
+            self.home_journal_status.configure(text="Saved", text_color="#b8e84b")
+        # Move focus away so text cursor does not remain visible.
+        self.focus_set()
+
+    def _resize_home_journal(self):
+        """Resize journal textbox based on available right panel height."""
+        if not hasattr(self, "home_journal_text"):
+            return
+        journal_h = self.journal_frame.winfo_height() if hasattr(self, "journal_frame") else 0
+        if journal_h > 0:
+            # Keep enough room for header + status + save button + paddings.
+            reserved_h = 150
+            usable_h = max(95, journal_h - reserved_h)
+            target_h = max(90, min(260, usable_h))
+        else:
+            target_h = 150
+        if int(self.home_journal_text.cget("height")) != target_h:
+            self.home_journal_text.configure(height=target_h)
 
     def setup_movies_page_tab(self):
         """Setup dedicated page for all movies in grid view."""
@@ -1226,6 +1271,10 @@ class MovieApp(CTk):
         right_w = usable_w - left_w
         self.home_content.grid_columnconfigure(0, minsize=left_w)
         self.home_content.grid_columnconfigure(2, minsize=right_w)
+        if hasattr(self, "recent_frame"):
+            self.after_idle(lambda: self.refresh_movie_list(reason="resize"))
+        if hasattr(self, "home_journal_text"):
+            self.after_idle(self._resize_home_journal)
 
     def _render_hero_image(self):
         if not hasattr(self, "hero_frame") or not hasattr(self, "hero_image_label"):
@@ -1347,32 +1396,43 @@ class MovieApp(CTk):
                     ).pack(fill="both", expand=True)
 
         # Recently added
+        for widget in self.recent_frame.winfo_children():
+            widget.destroy()
+        watching_source = all_poster_movies if all_poster_movies else self.data.get("movies", [])
+        watching_movies = watching_source[-3:][::-1]
+        if watching_movies:
+            while len(watching_movies) < 3:
+                watching_movies.append(watching_movies[-1])
+
+        frame_w = max(280, self.recent_frame.winfo_width())
+        thumb_w = max(100, min(150, int(frame_w * 0.32)))
+        thumb_h = int(thumb_w * 0.56)
+        title_font = max(14, min(17, int(frame_w * 0.045)))
+        genre_font = max(11, min(13, int(frame_w * 0.035)))
+
+        recent_content = CTkFrame(self.recent_frame, fg_color="transparent")
+        recent_content.pack(fill="both", expand=True, padx=4, pady=4)
+        CTkFrame(recent_content, fg_color="transparent", height=1).pack(fill="x", expand=True)
+
+        for movie in watching_movies:
+            title = str(movie.get("title", "Untitled"))
+            year = str(movie.get("year", ""))
+            row = CTkFrame(recent_content, fg_color="#3a3a3a", corner_radius=8)
+            row.pack(fill="x", padx=10, pady=7)
+            row_inner = CTkFrame(row, fg_color="transparent")
+            row_inner.pack(fill="both", expand=True, padx=8, pady=8)
+            thumb_path = self._resolve_image_path(movie)
+            thumb_img = self._make_image_cover_rounded(thumb_path, (thumb_w, thumb_h), radius=8)
+            if thumb_img:
+                CTkLabel(row_inner, image=thumb_img, text="").pack(side="left", padx=(0, 10))
+            meta = CTkFrame(row_inner, fg_color="transparent")
+            meta.pack(side="left", fill="both", expand=True)
+            CTkLabel(meta, text=f"{title} • {year}", anchor="w", font=("Arial", title_font, "bold")).pack(fill="x", pady=(2, 1))
+            CTkLabel(meta, text=str(movie.get("genre", "")), anchor="w", text_color="lightgray", font=("Arial", genre_font)).pack(fill="x")
+        CTkFrame(recent_content, fg_color="transparent", height=1).pack(fill="x", expand=True)
+
         if reason != "resize":
-            for widget in self.recent_frame.winfo_children():
-                widget.destroy()
-            watching_source = all_poster_movies if all_poster_movies else self.data.get("movies", [])
-            watching_movies = watching_source[-3:][::-1]
-            if watching_movies:
-                while len(watching_movies) < 3:
-                    watching_movies.append(watching_movies[-1])
-
-            for movie in watching_movies:
-                title = str(movie.get("title", "Untitled"))
-                year = str(movie.get("year", ""))
-                row = CTkFrame(self.recent_frame, fg_color="#3a3a3a", corner_radius=8)
-                row.pack(fill="x", padx=8, pady=6)
-                row_inner = CTkFrame(row, fg_color="transparent")
-                row_inner.pack(fill="x", padx=6, pady=6)
-                thumb_path = self._resolve_image_path(movie)
-                thumb_img = self._make_image_cover_rounded(thumb_path, (86, 48), radius=7)
-                if thumb_img:
-                    CTkLabel(row_inner, image=thumb_img, text="").pack(side="left", padx=(0, 8))
-                meta = CTkFrame(row_inner, fg_color="transparent")
-                meta.pack(side="left", fill="both", expand=True)
-                CTkLabel(meta, text=f"{title} • {year}", anchor="w", font=("Arial", 14, "bold")).pack(fill="x", pady=(2, 1))
-                CTkLabel(meta, text=str(movie.get("genre", "")), anchor="w", text_color="lightgray").pack(fill="x")
-
-            self._render_world_top5_showcase()
+            self._render_movie_journal()
     
     
     def add_movie(self):

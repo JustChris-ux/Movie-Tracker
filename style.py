@@ -1,0 +1,8 @@
+APP_BG       = "#191919"
+CARD_BG      = "#242424"
+CARD_BG2     = "#2c2c2c"
+PRIMARY      = "#b8e84b"
+PRIMARY_HOVER= "#c8f15f"
+TEXT_PRIMARY = "#f0f0f0"
+TEXT_MUTED   = "#888888"
+BORDER       = "#333333"

@@ -1,0 +1,42 @@
+{
+  "movie_1439930": {
+    "id": 1439930,
+    "media_type": "movie",
+    "title": "The Punisher: One Last Kill",
+    "poster_path": "/gOggsBCSypNXq0yApYeXe7nnopT.jpg",
+    "vote_average": 8.616,
+    "release_date": "2026-05-13",
+    "overview": "As Frank Castle searches for meaning beyond revenge, an unexpected force pulls him back into the fight.",
+    "added": "2026-05-16T16:22:21.799417"
+  },
+  "movie_931285": {
+    "id": 931285,
+    "media_type": "movie",
+    "title": "Mortal Kombat II",
+    "poster_path": "/lIsMeDbwntNXSUVHmWMMRXEZOVc.jpg",
+    "vote_average": 6.975,
+    "release_date": "2026-05-06",
+    "overview": "The fan favorite champions\u2014now joined by Johnny Cage himself\u2014are pitted against one another in the ultimate, no-holds barred, gory battle to defeat the dark rule of Shao Kahn that threatens the very existence of the Earthrealm and its defenders.",
+    "added": "2026-05-16T16:22:39.983190"
+  },
+  "tv_456": {
+    "id": 456,
+    "media_type": "tv",
+    "title": "The Simpsons",
+    "poster_path": "/uWpG7GqfKGQqX4YMAo3nv5OrglV.jpg",
+    "vote_average": 8.016,
+    "release_date": "1989-12-17",
+    "overview": "Set in Springfield, the average American town, the show focuses on the antics and everyday adventures of the Simpson family; Homer, Marge, Bart, Lisa and Maggie, as well as a virtual cast of thousands. Since the beginning, the series has been a pop culture icon, attracting hundreds of celebrities to guest star. The show has also made name for itself in its fearless satirical take on politics, media and American life in general.",
+    "added": "2026-05-17T19:10:11.089484"
+  },
+  "tv_5920": {
+    "id": 5920,
+    "media_type": "tv",
+    "title": "The Mentalist",
+    "poster_path": "/acYXu4KaDj1NIkMgObnhe4C4a0T.jpg",
+    "vote_average": 8.3,
+    "release_date": "2008-09-23",
+    "overview": "Patrick Jane, a former celebrity psychic medium, uses his razor sharp skills of observation and expertise at \"reading\" people to solve serious crimes with the California Bureau of Investigation.",
+    "added": "2026-05-17T19:11:26.921395"
+  }
+}

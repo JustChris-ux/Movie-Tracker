@@ -23,23 +23,21 @@ class WatchedPage(ctk.CTkFrame):
         topbar = ctk.CTkFrame(self, fg_color=CARD_BG, height=60, corner_radius=0)
         topbar.pack(fill="x")
         topbar.pack_propagate(False)
-        ctk.CTkButton(topbar, text="← Back", fg_color="transparent",
-                      hover_color=CARD_BG2, text_color=PRIMARY,
-                      command=self.app.show_home,
-                      font=ctk.CTkFont("Helvetica", 14, "bold")).pack(side="left", padx=16)
-        ctk.CTkLabel(topbar, text="🎬  CineTrack", font=ctk.CTkFont("Helvetica", 20, "bold"),
-                     text_color=PRIMARY).pack(side="left", padx=8)
+        ctk.CTkButton(
+            topbar, text="CineTrack",
+            font=ctk.CTkFont("Helvetica", 20, "bold"),
+            text_color=PRIMARY,
+            height=36,
+            fg_color="transparent",      
+            hover=False,
+            command=self.app.show_home
+        ).pack(side="left", padx=20)
 
         # Count badge
         count = len(self.app.watched)
         ctk.CTkLabel(topbar, text=f"{count} watched",
                      font=ctk.CTkFont("Helvetica", 13),
                      text_color=TEXT_MUTED).pack(side="right", padx=20)
-
-        # Header
-        ctk.CTkLabel(self, text="✓  My Watched List",
-                     font=ctk.CTkFont("Helvetica", 24, "bold"),
-                     text_color=PRIMARY).pack(anchor="w", padx=32, pady=(20, 8))
 
         if not self.app.watched:
             ctk.CTkLabel(self, text="Nothing watched yet.\nStart exploring movies & series!",
